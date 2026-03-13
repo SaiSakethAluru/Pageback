@@ -1,0 +1,11 @@
+flask
+flask-cors
+python-dotenv
+supabase
+openai
+ebooklib
+beautifulsoup4
+tiktoken
+pytest
+pytest-mock
+pytest-cov
