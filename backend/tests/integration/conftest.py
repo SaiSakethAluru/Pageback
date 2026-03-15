@@ -17,8 +17,9 @@ def _require_integration_env() -> None:
     required = [
         "OPENAI_API_KEY",
         "SUPABASE_URL",
-        "SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_KEY",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
         "FLASK_SECRET_KEY",
     ]
     missing = [name for name in required if not os.getenv(name)]

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-import supabase from "../../services/supabaseClient";
 import * as api from "../../services/api";
 import BookCard from "./BookCard";
 import UploadButton from "./UploadButton";
@@ -8,13 +7,12 @@ import UploadButton from "./UploadButton";
 export default function LibraryPage() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
   async function loadBooks() {
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const response = await api.getBooks(user.id);
+    const [{ user: currentUser }, response] = await Promise.all([api.getCurrentUser(), api.getBooks()]);
+    setUser(currentUser);
     setBooks(response);
     setLoading(false);
   }
@@ -22,6 +20,11 @@ export default function LibraryPage() {
   useEffect(() => {
     loadBooks().catch(() => setLoading(false));
   }, []);
+
+  async function handleLogout() {
+    await api.logout();
+    window.location.href = "/login";
+  }
 
   return (
     <div style={pageStyle}>
@@ -31,8 +34,14 @@ export default function LibraryPage() {
           <p style={{ margin: "0.5rem 0 0", color: "#69645e" }}>
             Upload EPUBs and pick up where you left off.
           </p>
+          {user ? <p style={{ margin: "0.5rem 0 0", color: "#8b8278" }}>{user.email}</p> : null}
         </div>
-        <UploadButton onUploadComplete={loadBooks} />
+        <div style={actionsStyle}>
+          <UploadButton onUploadComplete={loadBooks} />
+          <button type="button" onClick={handleLogout} style={logoutStyle}>
+            Log Out
+          </button>
+        </div>
       </div>
 
       {loading ? <p>Loading books...</p> : null}
@@ -65,4 +74,19 @@ const gridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
   gap: "1rem",
+};
+
+const actionsStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+};
+
+const logoutStyle = {
+  border: "1px solid #c9beae",
+  borderRadius: 999,
+  padding: "0.8rem 1rem",
+  background: "#fff8ef",
+  color: "#17313e",
+  fontWeight: 600,
 };

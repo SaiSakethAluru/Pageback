@@ -1,32 +1,27 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
-import supabase from "../../services/supabaseClient";
+import * as api from "../../services/api";
 
 export default function AuthGuard({ children }) {
-  const [session, setSession] = useState(undefined);
+  const [user, setUser] = useState(undefined);
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      if (!nextSession) {
+    api
+      .getCurrentUser()
+      .then(({ user: nextUser }) => setUser(nextUser))
+      .catch(() => {
+        setUser(null);
         navigate("/login", { replace: true });
-      }
-    });
-
-    return () => subscription.unsubscribe();
+      });
   }, [navigate]);
 
-  if (session === undefined) {
+  if (user === undefined) {
     return <div style={spinnerWrapStyle}>Loading...</div>;
   }
 
-  if (!session) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

@@ -5,6 +5,7 @@ The backend is a Flask API that handles upload, ingestion, reading-position pers
 ## Responsibilities
 
 - validate environment configuration at startup
+- own the user session and Google OAuth flow
 - accept EPUB uploads
 - store original files in Supabase Storage
 - parse and chunk book content
@@ -37,17 +38,25 @@ Uploads an EPUB, creates a `books` row, and kicks off ingestion in a background 
 
 Returns the current ingestion status.
 
-### `GET /api/v1/books?user_id=...`
+### `GET /api/v1/books/`
 
-Returns a user's library.
+Returns the authenticated user's library.
 
 ### `PUT /api/v1/positions/<book_id>`
 
 Upserts the saved reading position.
 
-### `GET /api/v1/positions/<book_id>?user_id=...`
+### `GET /api/v1/positions/<book_id>`
 
 Returns the latest saved reading position.
+
+### `GET /api/v1/auth/google/start`
+
+Starts the Google OAuth flow.
+
+### `GET /api/v1/auth/me`
+
+Returns the currently authenticated user.
 
 ### `POST /api/v1/recap/`
 
@@ -72,8 +81,9 @@ python run.py
 
 - `OPENAI_API_KEY`
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
 - `FLASK_SECRET_KEY`
 
 Optional:
@@ -81,6 +91,10 @@ Optional:
 - `LLM_PROVIDER`
 - `FLASK_ENV`
 - `FRONTEND_URL`
+- `GOOGLE_REDIRECT_URI`
+- `SESSION_COOKIE_NAME`
+- `SESSION_COOKIE_SAMESITE`
+- `SESSION_COOKIE_SECURE`
 
 ## Testing
 
@@ -103,6 +117,7 @@ pytest tests/integration/ -v
 - Levels 3-5 use semantic retrieval through the Supabase `match_chunks` RPC.
 - The spoiler fence is enforced by `end_char <= position_char`.
 - The current cache is process-local and will not survive restarts.
+- Google is the only auth provider wired today, but the session model is app-owned and can be extended later.
 
 ## Production Caveats
 

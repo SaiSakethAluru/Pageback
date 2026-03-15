@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from supabase import Client, create_client
 
+from app.auth import current_user_id, require_auth
 from config import Config
 
 positions_bp = Blueprint("positions", __name__, url_prefix="/api/v1/positions")
@@ -13,14 +14,13 @@ def _supabase() -> Client:
 
 
 @positions_bp.put("/<book_id>")
+@require_auth
 def upsert_position(book_id: str):
     payload = request.get_json(silent=True) or {}
-    user_id = (payload.get("user_id") or "").strip()
+    user_id = current_user_id()
     position_cfi = payload.get("position_cfi")
     position_char = payload.get("position_char")
 
-    if not user_id:
-        return jsonify({"error": "Missing required field: user_id"}), 400
     if position_cfi is None:
         return jsonify({"error": "Missing required field: position_cfi"}), 400
     if position_char is None:
@@ -41,11 +41,9 @@ def upsert_position(book_id: str):
 
 
 @positions_bp.get("/<book_id>")
+@require_auth
 def get_position(book_id: str):
-    user_id = (request.args.get("user_id") or "").strip()
-    if not user_id:
-        return jsonify({"error": "Missing required query parameter: user_id"}), 400
-
+    user_id = current_user_id()
     sb = _supabase()
     response = (
         sb.table(POSITIONS_TABLE)

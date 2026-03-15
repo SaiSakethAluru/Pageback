@@ -9,43 +9,72 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-export async function uploadBook(file, userId) {
+export function getGoogleLoginUrl() {
+  return `${API_BASE_URL}/api/v1/auth/google/start`;
+}
+
+export async function getCurrentUser() {
+  return request("/api/v1/auth/me", {
+    credentials: "include",
+  });
+}
+
+export async function logout() {
+  return request("/api/v1/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export async function uploadBook(file) {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("user_id", userId);
   return request("/api/v1/books/upload", {
     method: "POST",
     body: formData,
+    credentials: "include",
   });
 }
 
 export async function getBookStatus(bookId) {
-  return request(`/api/v1/books/${bookId}/status`);
+  return request(`/api/v1/books/${bookId}/status`, {
+    credentials: "include",
+  });
 }
 
-export async function getBooks(userId) {
-  return request(`/api/v1/books?user_id=${encodeURIComponent(userId)}`);
+export async function getBooks() {
+  return request("/api/v1/books/", {
+    credentials: "include",
+  });
 }
 
-export async function savePosition(bookId, userId, positionCfi, positionChar) {
+export async function savePosition(bookId, positionCfi, positionChar) {
   return request(`/api/v1/positions/${bookId}`, {
     method: "PUT",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      user_id: userId,
       position_cfi: positionCfi,
       position_char: positionChar,
     }),
   });
 }
 
-export async function getPosition(bookId, userId) {
-  return request(`/api/v1/positions/${bookId}?user_id=${encodeURIComponent(userId)}`);
+export async function getPosition(bookId) {
+  return request(`/api/v1/positions/${bookId}`, {
+    credentials: "include",
+  });
 }
 
-export async function getRecap(bookId, userId, positionChar, level) {
+export async function getBookFileUrl(bookId) {
+  return request(`/api/v1/books/${bookId}/file-url`, {
+    credentials: "include",
+  });
+}
+
+export async function getRecap(bookId, positionChar, level) {
   const headers = {
     "Content-Type": "application/json",
   };
@@ -56,10 +85,10 @@ export async function getRecap(bookId, userId, positionChar, level) {
 
   return request("/api/v1/recap", {
     method: "POST",
+    credentials: "include",
     headers,
     body: JSON.stringify({
       book_id: bookId,
-      user_id: userId,
       position_char: positionChar,
       level,
     }),
@@ -67,5 +96,7 @@ export async function getRecap(bookId, userId, positionChar, level) {
 }
 
 export async function getRecapLevels() {
-  return request("/api/v1/recap/levels");
+  return request("/api/v1/recap/levels", {
+    credentials: "include",
+  });
 }

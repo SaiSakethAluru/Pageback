@@ -3,6 +3,7 @@ import os
 from flask import Blueprint, jsonify, request
 from supabase import Client, create_client
 
+from app.auth import current_user_id, require_auth
 from app.services import recap_cache, window_resolver
 from app.services.llm import provider_factory
 from app.utils import token_counter
@@ -39,17 +40,16 @@ def _log_token_usage(user_id: str, provider_name: str, model_name: str, text_win
 
 
 @recap_bp.post("/")
+@require_auth
 def generate_recap():
     payload = request.get_json(silent=True) or {}
     book_id = (payload.get("book_id") or "").strip()
-    user_id = (payload.get("user_id") or "").strip()
+    user_id = current_user_id()
     position_char = payload.get("position_char")
     level = payload.get("level")
 
     if not book_id:
         return jsonify({"error": "Missing required field: book_id"}), 400
-    if not user_id:
-        return jsonify({"error": "Missing required field: user_id"}), 400
     if position_char is None:
         return jsonify({"error": "Missing required field: position_char"}), 400
     if level is None:

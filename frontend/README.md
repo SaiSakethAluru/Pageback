@@ -4,7 +4,7 @@ The frontend is a React + Vite app that handles authentication, library manageme
 
 ## Responsibilities
 
-- authenticate users with Supabase Auth
+- start Google sign-in against the backend auth endpoints
 - show the user's uploaded library
 - upload EPUB files through the backend API
 - render books in the browser with `epubjs`
@@ -30,7 +30,6 @@ frontend/
 
 ## Important Modules
 
-- `src/services/supabaseClient.js`: single Supabase client instance
 - `src/services/api.js`: backend API wrapper
 - `src/components/Library/LibraryPage.jsx`: library screen
 - `src/components/Reader/ReaderPage.jsx`: main reading experience
@@ -49,13 +48,11 @@ npm run dev
 ## Environment Variables
 
 - `VITE_API_BASE_URL`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
 - `VITE_ENV`
 
 ## User Flow
 
-1. User signs in on `/login`.
+1. User signs in on `/login` with Google.
 2. User lands on `/library`.
 3. User uploads an EPUB.
 4. The app polls until ingestion is complete.

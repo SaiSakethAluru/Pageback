@@ -16,6 +16,7 @@ The recap system is intentionally spoiler-fenced. The backend only retrieves chu
 - Frontend: React + Vite
 - Backend: Flask
 - Database and storage: Supabase
+- Authentication: backend-owned session + Google OAuth
 - LLM and embeddings: OpenAI
 
 ## Repository Layout
@@ -35,7 +36,7 @@ Additional app-specific documentation lives here:
 
 ## How It Works
 
-1. A user signs in with Supabase Auth.
+1. A user signs in with Google through the backend auth flow.
 2. The frontend uploads an EPUB to the backend.
 3. The backend stores the original file in Supabase Storage.
 4. A background ingestion job parses the EPUB, chunks the text, embeds the chunks, and stores them in Supabase.
@@ -50,15 +51,16 @@ Additional app-specific documentation lives here:
 - Node.js 18+ recommended
 - npm
 - A Supabase project
+- A Google OAuth client
 - An OpenAI API key
 
 ### 2. Configure Supabase
 
 You need a Supabase project with:
 
-- Auth enabled
 - a storage bucket named `books`
 - the SQL schema and RPC function described in the project spec
+- an application users table for backend-owned identities
 
 If you have not created the schema yet, set up the tables and the `match_chunks` RPC in the Supabase SQL editor before trying the full flow.
 
@@ -104,20 +106,23 @@ The frontend runs on `http://localhost:5173`.
 |---|---|---|
 | `OPENAI_API_KEY` | Yes | Used for recap generation and embeddings |
 | `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Yes | Required by config and useful for parity with frontend setup |
 | `SUPABASE_SERVICE_KEY` | Yes | Used by the backend for DB and storage operations |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | No | Defaults to `http://localhost:5000/api/v1/auth/google/callback` |
 | `LLM_PROVIDER` | No | Defaults to `openai` |
 | `FLASK_SECRET_KEY` | Yes | Flask app secret |
 | `FLASK_ENV` | No | Use `development` locally |
-| `FRONTEND_URL` | No | Production frontend origin for CORS |
+| `FRONTEND_URL` | No | Frontend origin for redirects and CORS |
+| `SESSION_COOKIE_NAME` | No | Defaults to `pageback_session` |
+| `SESSION_COOKIE_SAMESITE` | No | Defaults to `Lax` |
+| `SESSION_COOKIE_SECURE` | No | Use `true` behind HTTPS |
 
 ### Frontend
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `VITE_API_BASE_URL` | Yes | Flask API base URL |
-| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase public anon key |
 | `VITE_ENV` | No | Use `development` locally |
 
 ## Development Workflow
@@ -127,7 +132,7 @@ The frontend runs on `http://localhost:5173`.
 1. Start the backend.
 2. Start the frontend.
 3. Open `http://localhost:5173`.
-4. Sign in or create an account.
+4. Sign in with Google.
 5. Upload a small EPUB.
 6. Wait for ingestion to finish.
 7. Open the book and move a few pages.

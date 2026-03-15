@@ -1,30 +1,32 @@
-import { useEffect } from "react";
-import { Auth } from "@supabase/auth-ui-react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-import supabase from "../../services/supabaseClient";
+import * as api from "../../services/api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
+    api
+      .getCurrentUser()
+      .then(() => {
         navigate("/library", { replace: true });
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        navigate("/library", { replace: true });
-      }
-    });
-
-    return () => subscription.unsubscribe();
+      })
+      .catch(() => {});
   }, [navigate]);
+
+  useEffect(() => {
+    const authError = searchParams.get("error");
+    if (authError) {
+      setError("Google sign-in failed. Please try again.");
+    }
+  }, [searchParams]);
+
+  function handleLogin() {
+    window.location.href = api.getGoogleLoginUrl();
+  }
 
   return (
     <div style={pageStyle}>
@@ -35,11 +37,10 @@ export default function LoginPage() {
             Recaps that stay behind your current page.
           </p>
         </div>
-        <Auth
-          supabaseClient={supabase}
-          appearance={{ theme: ThemeSupa }}
-          providers={["google"]}
-        />
+        <button type="button" onClick={handleLogin} style={buttonStyle}>
+          Continue with Google
+        </button>
+        {error ? <p style={errorStyle}>{error}</p> : null}
       </div>
     </div>
   );
@@ -60,4 +61,20 @@ const cardStyle = {
   background: "rgba(255,255,255,0.95)",
   borderRadius: 24,
   boxShadow: "0 24px 60px rgba(41,37,36,0.12)",
+};
+
+const buttonStyle = {
+  width: "100%",
+  border: "none",
+  borderRadius: 999,
+  padding: "0.9rem 1.1rem",
+  background: "#17313e",
+  color: "#fff",
+  fontWeight: 600,
+  fontSize: "1rem",
+};
+
+const errorStyle = {
+  margin: "0.75rem 0 0",
+  color: "#a11d1d",
 };

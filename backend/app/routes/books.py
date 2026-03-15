@@ -1,11 +1,11 @@
 import logging
-import os
 import threading
 import uuid
 
 from flask import Blueprint, jsonify, request
 from supabase import Client, create_client
 
+from app.auth import current_user_id, require_auth
 from app.services import ingestion
 from config import Config
 
@@ -32,12 +32,11 @@ def _start_ingestion_thread(book_id: str, user_id: str, storage_path: str) -> No
     worker.start()
 
 @books_bp.post("/upload")
+@require_auth
 def upload_book():
-    user_id = request.form.get("user_id", "").strip()
+    user_id = current_user_id()
     file = request.files.get("file")
 
-    if not user_id:
-        return jsonify({"error": "Missing required form field: user_id"}), 400
     if file is None:
         return jsonify({"error": "Missing required form field: file"}), 400
 
@@ -86,9 +85,18 @@ def upload_book():
 
 
 @books_bp.get("/<book_id>/status")
+@require_auth
 def get_book_status(book_id: str):
+    user_id = current_user_id()
     sb = _supabase()
-    response = sb.table(BOOKS_TABLE).select("ingestion_status").eq("id", book_id).limit(1).execute()
+    response = (
+        sb.table(BOOKS_TABLE)
+        .select("ingestion_status")
+        .eq("id", book_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
     rows = response.data or []
     if not rows:
         return jsonify({"error": "Book not found"}), 404
@@ -98,11 +106,9 @@ def get_book_status(book_id: str):
 
 
 @books_bp.get("/")
+@require_auth
 def list_books():
-    user_id = request.args.get("user_id", "").strip()
-    if not user_id:
-        return jsonify({"error": "Missing required query parameter: user_id"}), 400
-
+    user_id = current_user_id()
     sb = _supabase()
     response = (
         sb.table(BOOKS_TABLE)
@@ -112,3 +118,24 @@ def list_books():
         .execute()
     )
     return jsonify(response.data or [])
+
+
+@books_bp.get("/<book_id>/file-url")
+@require_auth
+def get_book_file_url(book_id: str):
+    user_id = current_user_id()
+    response = (
+        _supabase()
+        .table(BOOKS_TABLE)
+        .select("storage_path")
+        .eq("id", book_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        return jsonify({"error": "Book not found"}), 404
+
+    signed = _supabase().storage.from_(BOOKS_BUCKET).create_signed_url(rows[0]["storage_path"], 3600)
+    return jsonify({"signed_url": signed.get("signedURL")})

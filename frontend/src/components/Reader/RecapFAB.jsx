@@ -4,7 +4,7 @@ import * as api from "../../services/api";
 import RecapLevelIndicator from "./RecapLevelIndicator";
 import RecapPanel from "./RecapPanel";
 
-export default function RecapFAB({ bookId, userId, positionChar }) {
+export default function RecapFAB({ bookId, positionChar }) {
   const [currentLevel, setCurrentLevel] = useState(0);
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +17,7 @@ export default function RecapFAB({ bookId, userId, positionChar }) {
     setIsLoading(true);
 
     try {
-      const response = await api.getRecap(bookId, userId, positionChar, nextLevel);
+      const response = await api.getRecap(bookId, positionChar, nextLevel);
       setSummary(response.summary);
     } finally {
       setIsLoading(false);

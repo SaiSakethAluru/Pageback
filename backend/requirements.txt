@@ -2,6 +2,8 @@ flask
 flask-cors
 python-dotenv
 supabase
+requests
+google-auth
 openai
 ebooklib
 beautifulsoup4

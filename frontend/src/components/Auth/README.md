@@ -4,7 +4,7 @@ This folder contains authentication-related UI.
 
 ## Contents
 
-- `LoginPage.jsx`: sign-in screen using Supabase Auth UI.
+- `LoginPage.jsx`: sign-in screen that starts the backend-owned Google OAuth flow.
 - `AuthGuard.jsx`: protects authenticated routes and redirects anonymous users.
 
 ## Notes

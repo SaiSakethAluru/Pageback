@@ -5,7 +5,6 @@ import { getReaderType } from "../../readers/BookReaderFactory";
 import EpubReader from "../../readers/EpubReader";
 import PdfReader from "../../readers/PdfReader";
 import * as api from "../../services/api";
-import supabase from "../../services/supabaseClient";
 import RecapFAB from "./RecapFAB";
 
 export default function ReaderPage() {
@@ -13,7 +12,6 @@ export default function ReaderPage() {
   const navigate = useNavigate();
   const readerRef = useRef(null);
   const saveTimerRef = useRef(null);
-  const [userId, setUserId] = useState("");
   const [bookUrl, setBookUrl] = useState("");
   const [initialCfi, setInitialCfi] = useState(null);
   const [currentCfi, setCurrentCfi] = useState(null);
@@ -21,17 +19,9 @@ export default function ReaderPage() {
 
   useEffect(() => {
     async function load() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUserId(user.id);
+      const [fileUrl, position] = await Promise.all([api.getBookFileUrl(bookId), api.getPosition(bookId)]);
+      setBookUrl(fileUrl.signed_url || "");
 
-      const signed = await supabase.storage
-        .from("books")
-        .createSignedUrl(`${user.id}/${bookId}/original.epub`, 3600);
-      setBookUrl(signed.data?.signedUrl || "");
-
-      const position = await api.getPosition(bookId, user.id);
       setInitialCfi(position.position_cfi);
       setCurrentCfi(position.position_cfi);
       setCurrentChar(position.position_char || 0);
@@ -52,9 +42,7 @@ export default function ReaderPage() {
       window.clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = window.setTimeout(() => {
-      if (userId) {
-        api.savePosition(bookId, userId, cfi, charOffset).catch(() => {});
-      }
+      api.savePosition(bookId, cfi, charOffset).catch(() => {});
     }, 2000);
   }
 
@@ -74,7 +62,7 @@ export default function ReaderPage() {
           onPositionChange={handlePositionChange}
         />
       </div>
-      {userId ? <RecapFAB bookId={bookId} userId={userId} positionChar={currentChar} /> : null}
+      <RecapFAB bookId={bookId} positionChar={currentChar} />
     </div>
   );
 }

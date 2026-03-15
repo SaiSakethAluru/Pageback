@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 
 import * as api from "../../services/api";
-import supabase from "../../services/supabaseClient";
 
 export default function UploadButton({ onUploadComplete }) {
   const inputRef = useRef(null);
@@ -18,10 +17,7 @@ export default function UploadButton({ onUploadComplete }) {
     setIsUploading(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const upload = await api.uploadBook(file, user.id);
+      const upload = await api.uploadBook(file);
 
       let status = upload.status;
       while (status === "pending" || status === "processing") {
