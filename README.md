@@ -64,25 +64,19 @@ You need a Supabase project with:
 
 If you have not created the schema yet, set up the tables and the `match_chunks` RPC in the Supabase SQL editor before trying the full flow.
 
-### 3. Start the Backend
+### 3. Install Backend Dependencies
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Fill in `backend/.env`, then run:
+Fill in `backend/.env` before starting the server or running tests.
 
-```bash
-python run.py
-```
-
-The backend listens on `http://localhost:5000`.
-
-### 4. Start the Frontend
+### 4. Install Frontend Dependencies
 
 ```bash
 cd frontend
@@ -90,13 +84,79 @@ npm install
 cp .env.example .env
 ```
 
-Fill in `frontend/.env`, then run:
+Fill in `frontend/.env` before starting the app.
+
+### 5. Test the Backend
+
+#### Unit tests
 
 ```bash
+cd backend
+source .venv/bin/activate
+pytest tests/unit -v
+```
+
+These are intended to run without external services, although the current code still expects backend env vars to exist during import.
+
+#### Integration tests
+
+```bash
+cd backend
+cp .env .env.test
+source .venv/bin/activate
+pytest tests/integration -v
+```
+
+Integration tests require working Supabase and OpenAI credentials in `backend/.env.test`.
+
+#### Coverage
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest --cov=app tests --cov-report=term-missing
+```
+
+### 6. Test the Frontend
+
+There is no dedicated frontend test suite in the repo yet. The current verification step is a production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+For interactive testing during development, run the frontend locally and exercise the flows in the browser.
+
+### 7. Start the Backend
+
+```bash
+cd backend
+source .venv/bin/activate
+python run.py
+```
+
+The backend listens on `http://localhost:5000`.
+
+Useful backend URLs:
+
+- App API base: `http://localhost:5000/api/v1`
+- Auth status: `http://localhost:5000/api/v1/auth/me`
+
+### 8. Start the Frontend
+
+```bash
+cd frontend
 npm run dev
 ```
 
 The frontend runs on `http://localhost:5173`.
+
+### 9. Access the App
+
+- Open `http://localhost:5173` in your browser for the UI.
+- The frontend talks to the backend at `http://localhost:5000` through `VITE_API_BASE_URL`.
+- Sign in with Google, upload a small EPUB, wait for ingestion to complete, then open the reader view.
 
 ## Environment Variables
 
@@ -146,37 +206,6 @@ The frontend runs on `http://localhost:5173`.
 4. `book_chunks` rows appear in Supabase with embeddings.
 5. The reader restores saved position.
 6. Recaps return cached responses on repeated requests.
-
-## Testing
-
-### Unit tests
-
-```bash
-cd backend
-source venv/bin/activate
-pytest tests/unit/ -v
-```
-
-These are intended to run without external services.
-
-### Integration tests
-
-```bash
-cd backend
-cp .env .env.test
-source venv/bin/activate
-pytest tests/integration/ -v
-```
-
-Integration tests require working Supabase and OpenAI credentials in `.env.test`.
-
-### Coverage
-
-```bash
-cd backend
-source venv/bin/activate
-pytest --cov=app tests/ --cov-report=term-missing
-```
 
 ## Current Limitations
 
