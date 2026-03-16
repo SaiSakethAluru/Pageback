@@ -9,6 +9,7 @@ BACKEND_ENV_FILE="$BACKEND_DIR/.env"
 FRONTEND_ENV_FILE="$FRONTEND_DIR/.env"
 BACKEND_VENV_DIR="$BACKEND_DIR/.venv"
 BACKEND_PIP="$BACKEND_VENV_DIR/bin/pip"
+PROMPT_ALL_OPTIONAL=false
 
 prompt_value() {
   local label="$1"
@@ -24,7 +25,7 @@ prompt_value() {
   while true; do
     if [[ "$secret" == "true" ]]; then
       read -r -s -p "$label$prompt_suffix: " value
-      printf '\n'
+      printf '\n' >&2
     else
       read -r -p "$label$prompt_suffix: " value
     fi
@@ -38,7 +39,7 @@ prompt_value() {
       return 0
     fi
 
-    printf 'A value is required for %s.\n' "$label"
+    printf 'A value is required for %s.\n' "$label" >&2
   done
 }
 
@@ -59,6 +60,18 @@ prompt_optional_value() {
   printf '%s' "$value"
 }
 
+resolve_optional_value() {
+  local label="$1"
+  local default_value="${2:-}"
+
+  if [[ "$PROMPT_ALL_OPTIONAL" == "true" ]]; then
+    prompt_optional_value "$label" "$default_value"
+    return 0
+  fi
+
+  printf '%s' "$default_value"
+}
+
 generate_flask_secret() {
   python3 -c 'import secrets; print(secrets.token_hex(32))'
 }
@@ -69,6 +82,33 @@ ensure_command() {
     printf 'Required command not found: %s\n' "$command_name" >&2
     exit 1
   fi
+}
+
+print_usage() {
+  printf 'Usage: %s [--all]\n' "$(basename "$0")"
+  printf '\n'
+  printf 'Options:\n'
+  printf '  --all   Prompt for optional environment values instead of silently using defaults.\n'
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all)
+        PROMPT_ALL_OPTIONAL=true
+        ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      *)
+        printf 'Unknown option: %s\n' "$1" >&2
+        print_usage >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
 }
 
 install_backend_dependencies() {
@@ -87,6 +127,7 @@ install_frontend_dependencies() {
   )
 }
 
+parse_args "$@"
 ensure_command python3
 ensure_command npm
 
@@ -100,17 +141,17 @@ google_client_id="$(prompt_value "Google client ID" "" true)"
 google_client_secret="$(prompt_value "Google client secret" "" true)"
 
 generated_flask_secret="$(generate_flask_secret)"
-flask_secret_key="$(prompt_optional_value "Flask secret key" "$generated_flask_secret")"
+flask_secret_key="$(resolve_optional_value "Flask secret key" "$generated_flask_secret")"
 
-frontend_url="$(prompt_optional_value "Frontend URL" "http://localhost:5173")"
-google_redirect_uri="$(prompt_optional_value "Google redirect URI" "http://localhost:5000/api/v1/auth/google/callback")"
-llm_provider="$(prompt_optional_value "LLM provider" "openai")"
-flask_env="$(prompt_optional_value "Flask environment" "development")"
-session_cookie_name="$(prompt_optional_value "Session cookie name" "pageback_session")"
-session_cookie_samesite="$(prompt_optional_value "Session cookie SameSite" "Lax")"
-session_cookie_secure="$(prompt_optional_value "Session cookie secure" "false")"
-vite_api_base_url="$(prompt_optional_value "Frontend API base URL" "http://localhost:5000")"
-vite_env="$(prompt_optional_value "Frontend environment" "development")"
+frontend_url="$(resolve_optional_value "Frontend URL" "http://localhost:5173")"
+google_redirect_uri="$(resolve_optional_value "Google redirect URI" "http://localhost:5000/api/v1/auth/google/callback")"
+llm_provider="$(resolve_optional_value "LLM provider" "openai")"
+flask_env="$(resolve_optional_value "Flask environment" "development")"
+session_cookie_name="$(resolve_optional_value "Session cookie name" "pageback_session")"
+session_cookie_samesite="$(resolve_optional_value "Session cookie SameSite" "Lax")"
+session_cookie_secure="$(resolve_optional_value "Session cookie secure" "false")"
+vite_api_base_url="$(resolve_optional_value "Frontend API base URL" "http://localhost:5000")"
+vite_env="$(resolve_optional_value "Frontend environment" "development")"
 
 mkdir -p "$BACKEND_DIR" "$FRONTEND_DIR"
 

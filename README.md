@@ -70,9 +70,12 @@ If you have not created the schema yet, set up the tables and the `match_chunks`
 ./scripts/setup_local.sh
 ```
 
+Use `./scripts/setup_local.sh --all` if you want the script to prompt for optional environment values instead of silently using the local defaults.
+
 This script will:
 
-- prompt for backend and frontend environment values
+- prompt for required backend environment values
+- use default values for optional backend and frontend env settings unless `--all` is passed
 - create `backend/.env`
 - create `frontend/.env`
 - create `backend/.venv`
