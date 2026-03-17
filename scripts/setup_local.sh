@@ -144,19 +144,21 @@ generated_flask_secret="$(generate_flask_secret)"
 flask_secret_key="$(resolve_optional_value "Flask secret key" "$generated_flask_secret")"
 
 frontend_url="$(resolve_optional_value "Frontend URL" "http://localhost:5173")"
-google_redirect_uri="$(resolve_optional_value "Google redirect URI" "http://localhost:5000/api/v1/auth/google/callback")"
+backend_port="$(resolve_optional_value "Backend port" "5050")"
+google_redirect_uri="$(resolve_optional_value "Google redirect URI" "http://localhost:${backend_port}/api/v1/auth/google/callback")"
 llm_provider="$(resolve_optional_value "LLM provider" "openai")"
 flask_env="$(resolve_optional_value "Flask environment" "development")"
 session_cookie_name="$(resolve_optional_value "Session cookie name" "pageback_session")"
 session_cookie_samesite="$(resolve_optional_value "Session cookie SameSite" "Lax")"
 session_cookie_secure="$(resolve_optional_value "Session cookie secure" "false")"
-vite_api_base_url="$(resolve_optional_value "Frontend API base URL" "http://localhost:5000")"
+vite_api_base_url="$(resolve_optional_value "Frontend API base URL" "http://localhost:${backend_port}")"
 vite_env="$(resolve_optional_value "Frontend environment" "development")"
 
 mkdir -p "$BACKEND_DIR" "$FRONTEND_DIR"
 
 printf 'Writing %s\n' "$BACKEND_ENV_FILE"
 cat > "$BACKEND_ENV_FILE" <<EOF
+BACKEND_PORT=$backend_port
 OPENAI_API_KEY=$openai_api_key
 SUPABASE_URL=$supabase_url
 SUPABASE_SERVICE_KEY=$supabase_service_key

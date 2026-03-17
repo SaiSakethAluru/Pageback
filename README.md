@@ -130,12 +130,12 @@ For interactive testing during development, run the frontend locally and exercis
 ./scripts/start_backend.sh
 ```
 
-The backend listens on `http://localhost:5000`.
+The backend listens on `http://localhost:5050` by default.
 
 Useful backend URLs:
 
-- App API base: `http://localhost:5000/api/v1`
-- Auth status: `http://localhost:5000/api/v1/auth/me`
+- App API base: `http://localhost:5050/api/v1`
+- Auth status: `http://localhost:5050/api/v1/auth/me`
 
 ### 7. Start the Frontend
 
@@ -149,7 +149,7 @@ The frontend runs on `http://localhost:5173`.
 ### 8. Access the App
 
 - Open `http://localhost:5173` in your browser for the UI.
-- The frontend talks to the backend at `http://localhost:5000` through `VITE_API_BASE_URL`.
+- The frontend talks to the backend at `http://localhost:5050` through `VITE_API_BASE_URL`.
 - Sign in with Google, upload a small EPUB, wait for ingestion to complete, then open the reader view.
 
 ### 9. Manual Setup Fallback
@@ -183,7 +183,8 @@ Fill in `backend/.env` and `frontend/.env`, then use the test and start commands
 | `SUPABASE_SERVICE_KEY` | Yes | Used by the backend for DB and storage operations |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | No | Defaults to `http://localhost:5000/api/v1/auth/google/callback` |
+| `BACKEND_PORT` | No | Defaults to `5050` for local development |
+| `GOOGLE_REDIRECT_URI` | No | Defaults to `http://localhost:5050/api/v1/auth/google/callback` |
 | `LLM_PROVIDER` | No | Defaults to `openai` |
 | `FLASK_SECRET_KEY` | Yes | Flask app secret |
 | `FLASK_ENV` | No | Use `development` locally |

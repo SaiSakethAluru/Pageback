@@ -88,6 +88,7 @@ python run.py
 
 Optional:
 
+- `BACKEND_PORT`
 - `LLM_PROVIDER`
 - `FLASK_ENV`
 - `FRONTEND_URL`

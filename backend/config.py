@@ -7,6 +7,7 @@ load_dotenv()
 
 
 class Config:
+    BACKEND_PORT = int(os.getenv("BACKEND_PORT", "5050"))
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
@@ -15,7 +16,7 @@ class Config:
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
     GOOGLE_REDIRECT_URI = os.getenv(
         "GOOGLE_REDIRECT_URI",
-        "http://localhost:5000/api/v1/auth/google/callback",
+        f"http://localhost:{BACKEND_PORT}/api/v1/auth/google/callback",
     )
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
     FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
