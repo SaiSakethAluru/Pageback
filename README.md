@@ -204,14 +204,15 @@ Fill in `backend/.env` and `frontend/.env`, then use the test and start commands
 
 ### Typical local flow
 
-1. Start the backend.
-2. Start the frontend.
-3. Open `http://localhost:5173`.
-4. Sign in with Google.
-5. Upload a small EPUB.
-6. Open the book and move a few pages (basic reading works immediately).
-7. Enable AI processing (background recommended).
-8. Trigger recap levels once AI processing finishes.
+1. Start Redis (`redis-server`).
+2. Start the backend (`./scripts/start_backend.sh`).
+3. Start the frontend.
+4. Open `http://localhost:5173`.
+5. Sign in with Google.
+6. Upload a small EPUB.
+7. Open the book and move a few pages (basic reading works immediately).
+8. Enable AI processing (background recommended).
+9. Trigger recap levels once AI processing finishes.
 
 ### Manual end-to-end checklist
 

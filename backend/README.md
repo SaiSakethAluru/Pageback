@@ -78,19 +78,16 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-python run.py
+../scripts/start_backend.sh
 ```
 
-In another terminal, run Redis and the Celery worker:
+Redis is required for background ingestion. In another terminal, start Redis:
 
 ```bash
-# Start Redis (if you don't already have one running)
 redis-server
-
-# Start the Celery worker (executes the ingestion pipeline)
-cd ..
-./scripts/start_celery_worker.sh
 ```
+
+When you start the backend via `../scripts/start_backend.sh`, the Celery worker is started automatically (unless `START_CELERY_WORKER=false`).
 
 ## Required Environment
 

@@ -25,4 +25,15 @@ source "$BACKEND_ENV_FILE"
 set +a
 
 cd "$BACKEND_DIR"
+
+# Start Celery worker for background ingestion.
+# This keeps local setup to a single command (plus Redis).
+START_CELERY_WORKER="${START_CELERY_WORKER:-true}"
+if [[ "$START_CELERY_WORKER" == "true" ]]; then
+  # Avoid spawning duplicate workers for the same app.
+  if ! pgrep -f "celery -A app.celery_app worker" >/dev/null 2>&1; then
+    "$ROOT_DIR/scripts/start_celery_worker.sh" >/dev/null 2>&1 &
+  fi
+fi
+
 exec "$VENV_PYTHON" run.py
