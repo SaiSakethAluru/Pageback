@@ -81,11 +81,7 @@ cp .env.example .env
 ../scripts/start_backend.sh
 ```
 
-Redis is required for background ingestion. In another terminal, start Redis:
-
-```bash
-redis-server
-```
+`Redis` is required for background ingestion. `./scripts/start_backend.sh` starts Redis automatically if it isn't already running.
 
 When you start the backend via `../scripts/start_backend.sh`, the Celery worker is started automatically (unless `START_CELERY_WORKER=false`).
 

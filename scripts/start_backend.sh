@@ -26,6 +26,36 @@ set +a
 
 cd "$BACKEND_DIR"
 
+# Start Redis (local dev) if not already running.
+# This keeps local setup to a single command.
+START_REDIS="${START_REDIS:-true}"
+if [[ "$START_REDIS" == "true" ]]; then
+  if pgrep -f "redis-server.*6379" >/dev/null 2>&1 || pgrep -f "redis-server" >/dev/null 2>&1; then
+    :
+  else
+    if command -v redis-server >/dev/null 2>&1; then
+      # Use --daemonize so we can keep this script running Flask/Celery.
+      # Note: redis-server is expected to be installed locally.
+      redis-server --daemonize yes >/dev/null 2>&1 || true
+
+      # Wait until Redis responds (best-effort).
+      if command -v redis-cli >/dev/null 2>&1; then
+        for _ in {1..20}; do
+          if redis-cli ping >/dev/null 2>&1; then
+            break
+          fi
+          sleep 0.25
+        done
+      else
+        sleep 1
+      fi
+    else
+      printf 'redis-server is not installed. Start Redis manually or install it and re-run.\n' >&2
+      exit 1
+    fi
+  fi
+fi
+
 # Start Celery worker for background ingestion.
 # This keeps local setup to a single command (plus Redis).
 START_CELERY_WORKER="${START_CELERY_WORKER:-true}"

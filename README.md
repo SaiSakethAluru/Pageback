@@ -204,8 +204,7 @@ Fill in `backend/.env` and `frontend/.env`, then use the test and start commands
 
 ### Typical local flow
 
-1. Start Redis (`redis-server`).
-2. Start the backend (`./scripts/start_backend.sh`).
+1. Start the backend (`./scripts/start_backend.sh`) (it starts Redis + Celery automatically).
 3. Start the frontend.
 4. Open `http://localhost:5173`.
 5. Sign in with Google.
