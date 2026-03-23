@@ -4,13 +4,16 @@ import * as api from "../../services/api";
 import RecapLevelIndicator from "./RecapLevelIndicator";
 import RecapPanel from "./RecapPanel";
 
-export default function RecapFAB({ bookId, positionChar }) {
+export default function RecapFAB({ bookId, positionChar, isAIComplete }) {
   const [currentLevel, setCurrentLevel] = useState(0);
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   async function handleClick() {
+    if (!isAIComplete) {
+      return;
+    }
     const nextLevel = Math.min(currentLevel + 1 || 1, 5);
     setCurrentLevel(nextLevel);
     setIsPanelOpen(true);
@@ -32,7 +35,7 @@ export default function RecapFAB({ bookId, positionChar }) {
 
   return (
     <>
-      <button type="button" onClick={handleClick} style={fabStyle}>
+      <button type="button" onClick={handleClick} disabled={!isAIComplete} style={fabStyle}>
         <span style={{ fontWeight: 700 }}>Recap</span>
         <RecapLevelIndicator level={currentLevel} />
       </button>

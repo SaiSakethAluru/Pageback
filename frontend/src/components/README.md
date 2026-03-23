@@ -7,7 +7,6 @@ This folder contains React components grouped by feature.
 - `Auth/`: login and route-guard components.
 - `Library/`: library view, book cards, and upload flow.
 - `Reader/`: main reading UI and recap interaction.
-- `DevTools/`: development-only helpers.
 
 ## Notes
 

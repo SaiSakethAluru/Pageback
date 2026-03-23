@@ -62,6 +62,5 @@ npm run dev
 
 ## Development Notes
 
-- `ApiKeySetup` is a development-only helper and should not ship publicly.
 - `PdfReader` is currently a stub.
 - The UI is intentionally thin and API-driven; most business logic lives in the backend.

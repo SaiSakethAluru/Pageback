@@ -134,7 +134,25 @@ ensure_command npm
 printf 'This script will create local env files for the backend and frontend.\n'
 printf 'Secrets stay on your machine in backend/.env and are already gitignored.\n\n'
 
-openai_api_key="$(prompt_value "OpenAI API key" "" true)"
+llm_provider="$(prompt_optional_value "LLM provider" "openai")"
+
+openai_api_key=""
+gemini_api_key=""
+gemini_recap_model="gemini-1.5-flash"
+gemini_embedding_model="embedding-001"
+
+if [[ "$llm_provider" == "openai" ]]; then
+  openai_api_key="$(prompt_value "OpenAI API key" "" true)"
+fi
+
+if [[ "$llm_provider" == "gemini" ]]; then
+  gemini_api_key="$(prompt_value "Gemini API key" "" true)"
+  gemini_recap_model="$(prompt_optional_value "Gemini recap model" "gemini-1.5-flash")"
+  gemini_embedding_model="$(prompt_optional_value "Gemini embedding model" "embedding-001")"
+fi
+
+redis_url="$(resolve_optional_value "Redis URL" "redis://localhost:6379/0")"
+
 supabase_url="$(prompt_value "Supabase URL" "https://your-project.supabase.co")"
 supabase_service_key="$(prompt_value "Supabase service key" "" true)"
 google_client_id="$(prompt_value "Google client ID" "" true)"
@@ -146,7 +164,6 @@ flask_secret_key="$(resolve_optional_value "Flask secret key" "$generated_flask_
 frontend_url="$(resolve_optional_value "Frontend URL" "http://localhost:5173")"
 backend_port="$(resolve_optional_value "Backend port" "5050")"
 google_redirect_uri="$(resolve_optional_value "Google redirect URI" "http://localhost:${backend_port}/api/v1/auth/google/callback")"
-llm_provider="$(resolve_optional_value "LLM provider" "openai")"
 flask_env="$(resolve_optional_value "Flask environment" "development")"
 session_cookie_name="$(resolve_optional_value "Session cookie name" "pageback_session")"
 session_cookie_samesite="$(resolve_optional_value "Session cookie SameSite" "Lax")"
@@ -160,6 +177,10 @@ printf 'Writing %s\n' "$BACKEND_ENV_FILE"
 cat > "$BACKEND_ENV_FILE" <<EOF
 BACKEND_PORT=$backend_port
 OPENAI_API_KEY=$openai_api_key
+GEMINI_API_KEY=$gemini_api_key
+GEMINI_RECAP_MODEL=$gemini_recap_model
+GEMINI_EMBEDDING_MODEL=$gemini_embedding_model
+REDIS_URL=$redis_url
 SUPABASE_URL=$supabase_url
 SUPABASE_SERVICE_KEY=$supabase_service_key
 GOOGLE_CLIENT_ID=$google_client_id

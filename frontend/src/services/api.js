@@ -42,6 +42,19 @@ export async function getBookStatus(bookId) {
   });
 }
 
+export async function startIngestion(bookId, { background = true } = {}) {
+  return request(`/api/v1/books/${bookId}/ingestion/start`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      background,
+    }),
+  });
+}
+
 export async function getBooks() {
   return request("/api/v1/books/", {
     credentials: "include",
@@ -75,18 +88,12 @@ export async function getBookFileUrl(bookId) {
 }
 
 export async function getRecap(bookId, positionChar, level) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
-  const devApiKey = localStorage.getItem("dev_openai_key");
-  if (devApiKey) {
-    headers["X-Dev-Api-Key"] = devApiKey;
-  }
-
   return request("/api/v1/recap", {
     method: "POST",
     credentials: "include",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       book_id: bookId,
       position_char: positionChar,

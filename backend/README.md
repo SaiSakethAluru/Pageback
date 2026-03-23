@@ -32,7 +32,11 @@ backend/
 
 ### `POST /api/v1/books/upload`
 
-Uploads an EPUB, creates a `books` row, and kicks off ingestion in a background thread.
+Uploads an EPUB, creates a `books` row, and marks it as `ready` (LLM processing is opt-in).
+
+### `POST /api/v1/books/<book_id>/ingestion/start`
+
+Starts the ingestion workflow (chunking + embeddings) either in the foreground or via Celery background execution.
 
 ### `GET /api/v1/books/<book_id>/status`
 
@@ -77,9 +81,19 @@ cp .env.example .env
 python run.py
 ```
 
+In another terminal, run Redis and the Celery worker:
+
+```bash
+# Start Redis (if you don't already have one running)
+redis-server
+
+# Start the Celery worker (executes the ingestion pipeline)
+cd ..
+./scripts/start_celery_worker.sh
+```
+
 ## Required Environment
 
-- `OPENAI_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `GOOGLE_CLIENT_ID`
@@ -90,6 +104,11 @@ Optional:
 
 - `BACKEND_PORT`
 - `LLM_PROVIDER`
+- `OPENAI_API_KEY` (required when `LLM_PROVIDER=openai`)
+- `GEMINI_API_KEY` (required when `LLM_PROVIDER=gemini`)
+- `GEMINI_RECAP_MODEL`
+- `GEMINI_EMBEDDING_MODEL`
+- `REDIS_URL` (required for Celery broker/result backend)
 - `FLASK_ENV`
 - `FRONTEND_URL`
 - `GOOGLE_REDIRECT_URI`
@@ -120,8 +139,24 @@ pytest tests/integration/ -v
 - The current cache is process-local and will not survive restarts.
 - Google is the only auth provider wired today, but the session model is app-owned and can be extended later.
 
-## Production Caveats
+## Supabase Schema Notes
 
-- `threading.Thread` should be replaced with a proper queue worker.
+The ingestion pipeline publishes progress and errors so the reader UI can show status while background ingestion runs.
+
+Add these optional columns to the `books` table:
+
+```sql
+alter table public.books
+  add column if not exists ingestion_progress integer,
+  add column if not exists ingestion_step text,
+  add column if not exists ingestion_error text;
+```
+
+Embedding note (important):
+- The Supabase `book_chunks.embedding` vector dimension (and the `match_chunks` RPC) must match the embedding model configured via `*_EMBEDDING_MODEL`.
+- For example, `gemini-embedding-001` uses 3072-dimensional vectors, while the default OpenAI embedding model uses a different dimension.
+
+## Production Caveats
+- `threading.Thread` has been replaced with Celery for background ingestion.
 - The service key is powerful; treat it like a secret.
 - In-memory cache is suitable for local development, not horizontal scale.

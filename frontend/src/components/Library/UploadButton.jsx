@@ -19,17 +19,6 @@ export default function UploadButton({ onUploadComplete }) {
     try {
       const upload = await api.uploadBook(file);
 
-      let status = upload.status;
-      while (status === "pending" || status === "processing") {
-        await new Promise((resolve) => window.setTimeout(resolve, 3000));
-        const next = await api.getBookStatus(upload.book_id);
-        status = next.status;
-      }
-
-      if (status === "failed") {
-        throw new Error("Ingestion failed");
-      }
-
       await onUploadComplete?.();
     } catch (uploadError) {
       setError(uploadError.message);
@@ -40,7 +29,7 @@ export default function UploadButton({ onUploadComplete }) {
   }
 
   return (
-    <div>
+    <div style={containerStyle}>
       <input
         ref={inputRef}
         type="file"
@@ -51,11 +40,17 @@ export default function UploadButton({ onUploadComplete }) {
       <button type="button" onClick={() => inputRef.current?.click()} style={buttonStyle}>
         {isUploading ? "Uploading..." : "Upload Book"}
       </button>
-      {error ? <p style={{ color: "#a11d1d", marginTop: "0.5rem" }}>{error}</p> : null}
+      <p style={error ? errorStyle : errorPlaceholderStyle}>{error || "\u00A0"}</p>
     </div>
   );
   // TODO: add .pdf to accept attribute once PDF support is implemented
 }
+
+const containerStyle = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+};
 
 const buttonStyle = {
   border: "none",
@@ -64,4 +59,16 @@ const buttonStyle = {
   background: "#17313e",
   color: "#fff",
   fontWeight: 600,
+};
+
+const errorStyle = {
+  color: "#a11d1d",
+  margin: "0.5rem 0 0",
+  maxWidth: 320,
+};
+
+// Keeps header actions aligned even when there's no error.
+const errorPlaceholderStyle = {
+  ...errorStyle,
+  color: "transparent",
 };

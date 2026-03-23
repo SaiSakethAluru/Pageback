@@ -16,15 +16,34 @@ export default function ReaderPage() {
   const [initialCfi, setInitialCfi] = useState(null);
   const [currentCfi, setCurrentCfi] = useState(null);
   const [currentChar, setCurrentChar] = useState(0);
+  const [isStartingAI, setIsStartingAI] = useState(false);
+  const [ingestion, setIngestion] = useState({
+    status: "ready",
+    progress: null,
+    step: "",
+    error: "",
+    llm: null,
+  });
 
   useEffect(() => {
     async function load() {
-      const [fileUrl, position] = await Promise.all([api.getBookFileUrl(bookId), api.getPosition(bookId)]);
+      const [fileUrl, position, ingestionStatus] = await Promise.all([
+        api.getBookFileUrl(bookId),
+        api.getPosition(bookId),
+        api.getBookStatus(bookId),
+      ]);
       setBookUrl(fileUrl.signed_url || "");
 
       setInitialCfi(position.position_cfi);
       setCurrentCfi(position.position_cfi);
       setCurrentChar(position.position_char || 0);
+      setIngestion({
+        status: ingestionStatus.status || ingestionStatus.ingestion_status || "ready",
+        progress: ingestionStatus.progress ?? null,
+        step: ingestionStatus.step || "",
+        error: ingestionStatus.error || "",
+        llm: ingestionStatus.llm || null,
+      });
     }
 
     load();
@@ -34,6 +53,32 @@ export default function ReaderPage() {
       }
     };
   }, [bookId]);
+
+  useEffect(() => {
+    let intervalId = null;
+    async function refreshIngestion() {
+      const ingestionStatus = await api.getBookStatus(bookId);
+      setIngestion({
+        status: ingestionStatus.status || ingestionStatus.ingestion_status || "ready",
+        progress: ingestionStatus.progress ?? null,
+        step: ingestionStatus.step || "",
+        error: ingestionStatus.error || "",
+        llm: ingestionStatus.llm || null,
+      });
+    }
+
+    if (ingestion.status === "processing") {
+      intervalId = window.setInterval(() => {
+        refreshIngestion().catch(() => {});
+      }, 2000);
+    }
+
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [bookId, ingestion.status]);
 
   function handlePositionChange(cfi, charOffset) {
     setCurrentCfi(cfi);
@@ -49,11 +94,81 @@ export default function ReaderPage() {
   const readerType = getReaderType("original.epub");
   const ReaderComponent = readerType === "pdf" ? PdfReader : EpubReader;
 
+  async function startAI(background) {
+    setIsStartingAI(true);
+    try {
+      await api.startIngestion(bookId, { background });
+      const ingestionStatus = await api.getBookStatus(bookId);
+      setIngestion({
+        status: ingestionStatus.status || ingestionStatus.ingestion_status || "ready",
+        progress: ingestionStatus.progress ?? null,
+        step: ingestionStatus.step || "",
+        error: ingestionStatus.error || "",
+        llm: ingestionStatus.llm || null,
+      });
+    } finally {
+      setIsStartingAI(false);
+    }
+  }
+
+  const isAIComplete = ingestion.status === "complete";
+  const modelLine =
+    ingestion.llm && ingestion.llm.provider
+      ? `${ingestion.llm.provider} | recap: ${ingestion.llm.recap_model} | embed: ${ingestion.llm.embedding_model}`
+      : "";
+
   return (
     <div style={readerPageStyle}>
       <button type="button" onClick={() => navigate("/library")} style={backStyle}>
         Back
       </button>
+
+      <section style={aiPanelStyle}>
+        <p style={{ margin: 0, fontWeight: 800 }}>
+          {isAIComplete ? "AI processing complete" : "AI processing (opt-in)"}
+        </p>
+        {modelLine ? <p style={{ margin: "0.5rem 0 0", color: "#6d645a" }}>Using: {modelLine}</p> : null}
+
+        {!isAIComplete ? (
+          <>
+            <div style={progressRowStyle}>
+              <p style={{ margin: 0 }}>
+                Status: <span style={{ fontWeight: 700 }}>{ingestion.status}</span>
+              </p>
+              {typeof ingestion.progress === "number" ? (
+                <p style={{ margin: 0, fontWeight: 700 }}>{ingestion.progress}%</p>
+              ) : null}
+            </div>
+            {ingestion.step ? <p style={{ margin: "0.4rem 0 0", color: "#6d645a" }}>{ingestion.step}</p> : null}
+            {ingestion.error ? (
+              <p style={{ margin: "0.4rem 0 0", color: "#a11d1d" }}>Error: {ingestion.error}</p>
+            ) : null}
+
+            <div style={aiButtonsStyle}>
+              <button
+                type="button"
+                onClick={() => startAI(true)}
+                disabled={isStartingAI}
+                style={aiButtonStyle}
+              >
+                Enable AI (background)
+              </button>
+              <button
+                type="button"
+                onClick={() => startAI(false)}
+                disabled={isStartingAI}
+                style={aiButtonStyle}
+              >
+                Enable AI (now)
+              </button>
+            </div>
+            <p style={{ margin: "0.7rem 0 0", color: "#6d645a" }}>
+              Recaps unlock when AI processing finishes.
+            </p>
+          </>
+        ) : null}
+      </section>
+
       <div style={readerShellStyle}>
         <ReaderComponent
           ref={readerRef}
@@ -62,7 +177,7 @@ export default function ReaderPage() {
           onPositionChange={handlePositionChange}
         />
       </div>
-      <RecapFAB bookId={bookId} positionChar={currentChar} />
+      <RecapFAB bookId={bookId} positionChar={currentChar} isAIComplete={isAIComplete} />
     </div>
   );
 }
@@ -79,6 +194,38 @@ const backStyle = {
   borderRadius: 999,
   padding: "0.65rem 1rem",
   marginBottom: "1rem",
+};
+
+const aiPanelStyle = {
+  background: "#fffaf0",
+  border: "1px solid #e7dcc7",
+  borderRadius: 16,
+  padding: "0.9rem 1rem",
+  marginBottom: "1rem",
+};
+
+const progressRowStyle = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: "1rem",
+  marginTop: "0.7rem",
+};
+
+const aiButtonsStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  marginTop: "0.8rem",
+};
+
+const aiButtonStyle = {
+  border: "none",
+  borderRadius: 12,
+  padding: "0.65rem 0.9rem",
+  background: "#17313e",
+  color: "#fff",
+  fontWeight: 800,
 };
 
 const readerShellStyle = {

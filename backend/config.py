@@ -19,6 +19,10 @@ class Config:
         f"http://localhost:{BACKEND_PORT}/api/v1/auth/google/callback",
     )
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    GEMINI_RECAP_MODEL = os.getenv("GEMINI_RECAP_MODEL", "gemini-1.5-flash")
+    GEMINI_EMBEDDING_MODEL = os.getenv("GEMINI_EMBEDDING_MODEL", "embedding-001")
+
     FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "pageback_session")
     SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
@@ -35,16 +39,33 @@ class Config:
     CHUNK_SIZE_TOKENS = 500
     CHUNK_OVERLAP_TOKENS = 50
 
+    # Celery / Redis for background ingestion.
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+
     @classmethod
     def validate(cls) -> None:
         required = {
-            "OPENAI_API_KEY": cls.OPENAI_API_KEY,
             "SUPABASE_URL": cls.SUPABASE_URL,
             "SUPABASE_SERVICE_KEY": cls.SUPABASE_SERVICE_KEY,
             "GOOGLE_CLIENT_ID": cls.GOOGLE_CLIENT_ID,
             "GOOGLE_CLIENT_SECRET": cls.GOOGLE_CLIENT_SECRET,
             "FLASK_SECRET_KEY": cls.FLASK_SECRET_KEY,
         }
+        provider_required: dict[str, str | None] = {}
+        if cls.LLM_PROVIDER == "openai":
+            provider_required = {"OPENAI_API_KEY": cls.OPENAI_API_KEY}
+        elif cls.LLM_PROVIDER == "gemini":
+            provider_required = {"GEMINI_API_KEY": cls.GEMINI_API_KEY}
+        elif cls.LLM_PROVIDER == "claude":
+            # Placeholder: current code still requires OpenAI env vars for local recap tests.
+            # Extend later once Claude integration is implemented.
+            provider_required = {"OPENAI_API_KEY": cls.OPENAI_API_KEY}
+        else:
+            provider_required = {"OPENAI_API_KEY": cls.OPENAI_API_KEY}
+
+        required.update(provider_required)
         missing = [name for name, value in required.items() if not value]
         if missing:
             joined = ", ".join(missing)

@@ -15,13 +15,20 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env.test")
 
 def _require_integration_env() -> None:
     required = [
-        "OPENAI_API_KEY",
         "SUPABASE_URL",
         "SUPABASE_SERVICE_KEY",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "FLASK_SECRET_KEY",
     ]
+    llm_provider = os.getenv("LLM_PROVIDER", "openai")
+    if llm_provider == "openai":
+        required.append("OPENAI_API_KEY")
+    elif llm_provider == "gemini":
+        required.append("GEMINI_API_KEY")
+    else:
+        # Current integration coverage assumes OpenAI-based retrieval/recap.
+        required.append("OPENAI_API_KEY")
     missing = [name for name in required if not os.getenv(name)]
     if missing:
         pytest.skip(f"Missing integration env vars: {', '.join(missing)}")

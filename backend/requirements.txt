@@ -5,6 +5,8 @@ supabase
 requests
 google-auth
 openai
+celery
+redis
 ebooklib
 beautifulsoup4
 tiktoken

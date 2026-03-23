@@ -78,7 +78,7 @@ const gridStyle = {
 
 const actionsStyle = {
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "0.75rem",
 };
 

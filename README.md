@@ -39,7 +39,7 @@ Additional app-specific documentation lives here:
 1. A user signs in with Google through the backend auth flow.
 2. The frontend uploads an EPUB to the backend.
 3. The backend stores the original file in Supabase Storage.
-4. A background ingestion job parses the EPUB, chunks the text, embeds the chunks, and stores them in Supabase.
+4. The user opts-in to AI ingestion (optionally in the background); ingestion parses the EPUB, chunks the text, embeds the chunks, and stores them in Supabase.
 5. While reading, the frontend saves the latest CFI and character offset.
 6. When the reader asks for a recap, the backend resolves a spoiler-safe text window and sends only that window to the LLM.
 
@@ -52,7 +52,7 @@ Additional app-specific documentation lives here:
 - npm
 - A Supabase project
 - A Google OAuth client
-- An OpenAI API key
+- An OpenAI API key or a Gemini API key (depending on `LLM_PROVIDER`)
 
 ### 2. Configure Supabase
 
@@ -209,25 +209,26 @@ Fill in `backend/.env` and `frontend/.env`, then use the test and start commands
 3. Open `http://localhost:5173`.
 4. Sign in with Google.
 5. Upload a small EPUB.
-6. Wait for ingestion to finish.
-7. Open the book and move a few pages.
-8. Trigger recap levels from the floating action button.
+6. Open the book and move a few pages (basic reading works immediately).
+7. Enable AI processing (background recommended).
+8. Trigger recap levels once AI processing finishes.
 
 ### Manual end-to-end checklist
 
 1. Login page renders correctly.
-2. Upload begins and status polling works.
-3. The book moves from `pending` to `processing` to `complete`.
-4. `book_chunks` rows appear in Supabase with embeddings.
-5. The reader restores saved position.
-6. Recaps return cached responses on repeated requests.
+2. Upload creates a book as `ready` and the reader opens immediately.
+3. Enable AI processing (background); observe progress + errors in the reader UI.
+4. The book moves to `processing` and then `complete` after ingestion finishes.
+5. `book_chunks` rows appear in Supabase with embeddings.
+6. The reader restores saved position.
+7. Recaps return cached responses on repeated requests.
 
 ## Current Limitations
 
 - EPUB is implemented; PDF is scaffolded but not supported yet.
-- Background ingestion currently uses `threading.Thread`, which is acceptable for local development but not for production scale.
+- Background ingestion uses Celery/Redis for production-like behavior.
 - Recap cache is in-memory only.
-- Claude and Gemini providers are stubbed.
+- Claude provider is stubbed; Gemini provider is implemented.
 
 ## Notes for Future Work
 

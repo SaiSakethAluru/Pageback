@@ -1,5 +1,3 @@
-import os
-
 from flask import Blueprint, jsonify, request
 from supabase import Client, create_client
 
@@ -70,10 +68,6 @@ def generate_recap():
     cached = recap_cache.get(cache_key)
     if cached:
         return jsonify({"summary": cached, "level": level, "cached": True})
-
-    dev_api_key = request.headers.get("X-Dev-Api-Key")
-    if dev_api_key and os.getenv("FLASK_ENV") == "development":
-        os.environ["OPENAI_API_KEY"] = dev_api_key
 
     text_window = window_resolver.resolve(book_id, position_char, level)
     provider = provider_factory.get_provider()
