@@ -48,7 +48,9 @@ if [[ "$START_REDIS" == "true" ]]; then
         sleep 1
       fi
     else
-      printf 'redis-server is not installed. Start Redis manually or install it and re-run.\n' >&2
+      printf 'redis-server is not installed.\n' >&2
+      printf 'Install Redis (macOS/Homebrew): brew install redis\n' >&2
+      printf 'Or start Redis manually and re-run this script.\n' >&2
       exit 1
     fi
   fi

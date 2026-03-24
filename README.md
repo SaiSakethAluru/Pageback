@@ -50,9 +50,22 @@ Additional app-specific documentation lives here:
 - Python 3.11+ recommended
 - Node.js 18+ recommended
 - npm
+- Redis installed locally (`redis-server` on your `PATH`)
 - A Supabase project
 - A Google OAuth client
 - An OpenAI API key or a Gemini API key (depending on `LLM_PROVIDER`)
+
+The helper scripts assume these local binaries already exist:
+
+- `python3` for creating the backend virtualenv
+- `npm` for installing frontend dependencies
+- `redis-server` for local background ingestion via Celery
+
+On macOS with Homebrew, install Redis with:
+
+```bash
+brew install redis
+```
 
 ### 2. Configure Supabase
 
@@ -81,6 +94,8 @@ This script will:
 - create `backend/.venv`
 - install backend Python dependencies
 - install frontend npm dependencies
+
+Before running it, make sure `python3` and `npm` are installed locally. `setup_local.sh` checks for both and exits early if either is missing.
 
 ### 4. Test the Backend
 
@@ -130,6 +145,8 @@ For interactive testing during development, run the frontend locally and exercis
 ./scripts/start_backend.sh
 ```
 
+Before starting the backend, make sure Redis is installed locally so the script can launch `redis-server` automatically for background ingestion.
+
 The backend listens on `http://localhost:5050` by default.
 
 Useful backend URLs:
@@ -171,6 +188,14 @@ cp .env.example .env
 ```
 
 Fill in `backend/.env` and `frontend/.env`, then use the test and start commands above.
+
+For Google OAuth local development, make sure your Google client is configured with the local backend callback URL:
+
+- `http://localhost:5050/api/v1/auth/google/callback`
+
+and the frontend origin:
+
+- `http://localhost:5173`
 
 ## Environment Variables
 

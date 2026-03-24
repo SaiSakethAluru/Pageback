@@ -72,16 +72,28 @@ Returns recap-level configuration.
 
 ## Local Setup
 
+Prerequisites:
+
+- `python3`
+- `redis-server` installed locally
+- valid backend credentials ready to place in `backend/.env`
+
+On macOS with Homebrew:
+
+```bash
+brew install redis
+```
+
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ../scripts/start_backend.sh
 ```
 
-`Redis` is required for background ingestion. `./scripts/start_backend.sh` starts Redis automatically if it isn't already running.
+`Redis` is required for background ingestion. `../scripts/start_backend.sh` starts Redis automatically if it isn't already running, but it still expects the `redis-server` binary to already be installed on your machine.
 
 When you start the backend via `../scripts/start_backend.sh`, the Celery worker is started automatically (unless `START_CELERY_WORKER=false`).
 
