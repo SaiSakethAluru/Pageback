@@ -34,6 +34,9 @@ prompt_value() {
       value="$default_value"
     fi
 
+    # Normalize clipboard pastes that may include a trailing carriage return.
+    value="${value%$'\r'}"
+
     if [[ -n "$value" ]]; then
       printf '%s' "$value"
       return 0
@@ -57,6 +60,7 @@ prompt_optional_value() {
   if [[ -z "$value" ]]; then
     value="$default_value"
   fi
+  value="${value%$'\r'}"
   printf '%s' "$value"
 }
 

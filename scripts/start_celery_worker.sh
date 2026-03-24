@@ -18,11 +18,10 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
   exit 1
 fi
 
-set -a
-source "$BACKEND_ENV_FILE"
-set +a
-
 cd "$BACKEND_DIR"
 
-exec "$VENV_PYTHON" -m celery -A app.celery_app worker --loglevel=INFO
+# Let python-dotenv load backend/.env from the backend directory.
+# Sourcing the file in bash is fragile because secrets may contain shell
+# metacharacters like parentheses, ampersands, or spaces.
 
+exec "$VENV_PYTHON" -m celery -A app.celery_app worker --loglevel=INFO
