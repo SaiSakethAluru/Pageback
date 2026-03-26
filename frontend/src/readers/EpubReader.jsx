@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ePub from "epubjs";
 
 const EpubReader = forwardRef(function EpubReader(
@@ -9,52 +9,116 @@ const EpubReader = forwardRef(function EpubReader(
   const bookRef = useRef(null);
   const renditionRef = useRef(null);
   const latestCfiRef = useRef(initialCfi ?? null);
+  const onPositionChangeRef = useRef(onPositionChange);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    onPositionChangeRef.current = onPositionChange;
+  }, [onPositionChange]);
 
   useEffect(() => {
     if (!bookUrl || !containerRef.current) {
       return undefined;
     }
 
-    const book = ePub(bookUrl);
-    const rendition = book.renderTo(containerRef.current, {
-      width: "100%",
-      height: "100%",
-    });
+    let isCancelled = false;
+    let rendition = null;
+    let book = null;
+    let handleRelocated = null;
 
-    bookRef.current = book;
-    renditionRef.current = rendition;
+    async function loadBook() {
+      setError("");
 
-    const handleRelocated = (location) => {
-      const cfi = location?.start?.cfi ?? null;
-      latestCfiRef.current = cfi;
-      const charOffset = Math.max(
-        0,
-        Math.round((location?.start?.displayed?.page ?? 0) * 1200),
-      );
-      onPositionChange?.(cfi, charOffset);
-    };
+      try {
+        const response = await fetch(bookUrl);
+        if (!response.ok) {
+          throw new Error(`EPUB download failed (${response.status})`);
+        }
 
-    rendition.on("relocated", handleRelocated);
-    if (initialCfi) {
-      rendition.display(initialCfi);
-    } else {
-      rendition.display();
+        const data = await response.arrayBuffer();
+        if (isCancelled || !containerRef.current) {
+          return;
+        }
+
+        book = ePub(data);
+        rendition = book.renderTo(containerRef.current, {
+          width: "100%",
+          height: "100%",
+        });
+
+        bookRef.current = book;
+        renditionRef.current = rendition;
+
+        handleRelocated = (location) => {
+          const cfi = location?.start?.cfi ?? null;
+          latestCfiRef.current = cfi;
+          const charOffset = Math.max(
+            0,
+            Math.round((location?.start?.displayed?.page ?? 0) * 1200),
+          );
+          onPositionChangeRef.current?.(cfi, charOffset);
+        };
+
+        rendition.on("relocated", handleRelocated);
+        if (initialCfi) {
+          await rendition.display(initialCfi);
+        } else {
+          await rendition.display();
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Could not open this EPUB.");
+        }
+      }
     }
 
+    loadBook();
+
     return () => {
-      rendition.off("relocated", handleRelocated);
-      rendition.destroy();
-      book.destroy();
+      isCancelled = true;
+      if (rendition && handleRelocated) {
+        rendition.off("relocated", handleRelocated);
+      }
+      if (rendition) {
+        rendition.destroy();
+      }
+      if (book) {
+        book.destroy();
+      }
     };
-  }, [bookUrl, initialCfi, onPositionChange]);
+  }, [bookUrl, initialCfi]);
 
   useImperativeHandle(ref, () => ({
     getCurrentCfi() {
       return latestCfiRef.current;
     },
+    next() {
+      return renditionRef.current?.next();
+    },
+    prev() {
+      return renditionRef.current?.prev();
+    },
   }));
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <>
+      {error ? <div style={errorStyle}>Reader error: {error}</div> : null}
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+    </>
+  );
 });
 
 export default EpubReader;
+
+const errorStyle = {
+  position: "absolute",
+  top: "1rem",
+  left: "1rem",
+  right: "1rem",
+  zIndex: 1,
+  padding: "0.8rem 1rem",
+  borderRadius: 12,
+  background: "#fff2f2",
+  color: "#8a1c1c",
+  border: "1px solid #f0bcbc",
+};

@@ -117,6 +117,14 @@ export default function ReaderPage() {
       ? `${ingestion.llm.provider} | recap: ${ingestion.llm.recap_model} | embed: ${ingestion.llm.embedding_model}`
       : "";
 
+  function goToPreviousPage() {
+    readerRef.current?.prev?.();
+  }
+
+  function goToNextPage() {
+    readerRef.current?.next?.();
+  }
+
   return (
     <div style={readerPageStyle}>
       <button type="button" onClick={() => navigate("/library")} style={backStyle}>
@@ -170,12 +178,18 @@ export default function ReaderPage() {
       </section>
 
       <div style={readerShellStyle}>
+        <button type="button" onClick={goToPreviousPage} style={navButtonLeftStyle}>
+          Previous
+        </button>
         <ReaderComponent
           ref={readerRef}
           bookUrl={bookUrl}
           initialCfi={initialCfi}
           onPositionChange={handlePositionChange}
         />
+        <button type="button" onClick={goToNextPage} style={navButtonRightStyle}>
+          Next
+        </button>
       </div>
       <RecapFAB bookId={bookId} positionChar={currentChar} isAIComplete={isAIComplete} />
     </div>
@@ -229,9 +243,34 @@ const aiButtonStyle = {
 };
 
 const readerShellStyle = {
+  position: "relative",
   height: "calc(100vh - 96px)",
   background: "#fffaf0",
   borderRadius: 24,
   overflow: "hidden",
   boxShadow: "0 24px 60px rgba(0,0,0,0.12)",
+};
+
+const navButtonBaseStyle = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  zIndex: 2,
+  border: "none",
+  borderRadius: 999,
+  padding: "0.8rem 1rem",
+  background: "rgba(23, 49, 62, 0.88)",
+  color: "#fff",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const navButtonLeftStyle = {
+  ...navButtonBaseStyle,
+  left: "1rem",
+};
+
+const navButtonRightStyle = {
+  ...navButtonBaseStyle,
+  right: "1rem",
 };

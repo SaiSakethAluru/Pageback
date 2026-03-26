@@ -26,16 +26,52 @@ def upsert_position(book_id: str):
     if position_char is None:
         return jsonify({"error": "Missing required field: position_char"}), 400
 
+    try:
+        position_char = int(position_char)
+    except (TypeError, ValueError):
+        return jsonify({"error": "position_char must be an integer"}), 400
+
     sb = _supabase()
-    sb.table(POSITIONS_TABLE).upsert(
-        {
-            "user_id": user_id,
-            "book_id": book_id,
-            "position_cfi": position_cfi,
-            "position_char": position_char,
-        },
-        on_conflict="user_id,book_id",
-    ).execute()
+    payload = {
+        "user_id": user_id,
+        "book_id": book_id,
+        "position_cfi": position_cfi,
+        "position_char": position_char,
+    }
+
+    try:
+        sb.table(POSITIONS_TABLE).upsert(
+            payload,
+            on_conflict="user_id,book_id",
+        ).execute()
+    except Exception:
+        try:
+            existing = (
+                sb.table(POSITIONS_TABLE)
+                .select("user_id, book_id")
+                .eq("user_id", user_id)
+                .eq("book_id", book_id)
+                .limit(1)
+                .execute()
+            )
+            rows = existing.data or []
+            if rows:
+                (
+                    sb.table(POSITIONS_TABLE)
+                    .update(
+                        {
+                            "position_cfi": position_cfi,
+                            "position_char": position_char,
+                        }
+                    )
+                    .eq("user_id", user_id)
+                    .eq("book_id", book_id)
+                    .execute()
+                )
+            else:
+                sb.table(POSITIONS_TABLE).insert(payload).execute()
+        except Exception as exc:
+            return jsonify({"error": f"Could not save reading position: {exc}"}), 500
 
     return jsonify({"success": True})
 
