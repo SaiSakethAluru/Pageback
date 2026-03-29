@@ -8,8 +8,8 @@ export default function RecapLevelIndicator({ level }) {
             width: 8,
             height: 8,
             borderRadius: "50%",
-            border: "1px solid rgba(255,255,255,0.9)",
-            background: index < level ? "#f2d18f" : "transparent",
+            border: "1px solid rgba(67, 53, 39, 0.35)",
+            background: index < level ? "#c89a4d" : "transparent",
             display: "inline-block",
           }}
         />
