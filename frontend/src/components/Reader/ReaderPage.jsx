@@ -35,6 +35,8 @@ export default function ReaderPage() {
   const [bookUrl, setBookUrl] = useState("");
   const [initialCfi, setInitialCfi] = useState(null);
   const [currentChar, setCurrentChar] = useState(0);
+  const [isReaderLoading, setIsReaderLoading] = useState(true);
+  const [isReaderReady, setIsReaderReady] = useState(false);
   const [isStartingAI, setIsStartingAI] = useState(false);
   const [aiDialogOpen, setAIDialogOpen] = useState(false);
   const [recapDialogOpen, setRecapDialogOpen] = useState(false);
@@ -47,8 +49,8 @@ export default function ReaderPage() {
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
   const [pageInput, setPageInput] = useState("1");
   const [readerState, setReaderState] = useState({
-    currentPage: 1,
-    totalPages: 1,
+    currentPage: null,
+    totalPages: null,
     canGoPrevious: false,
     canGoNext: false,
   });
@@ -74,6 +76,8 @@ export default function ReaderPage() {
       setBookUrl(fileUrl.signed_url || "");
       setInitialCfi(position.position_cfi);
       setCurrentChar(position.position_char || 0);
+      setIsReaderLoading(true);
+      setIsReaderReady(false);
       setIngestion({
         status: ingestionStatus.status || ingestionStatus.ingestion_status || "ready",
         progress: ingestionStatus.progress ?? null,
@@ -122,10 +126,17 @@ export default function ReaderPage() {
   }, [bookId, ingestion.status]);
 
   useEffect(() => {
-    setPageInput(String(readerState.currentPage || 1));
+    if (readerState.currentPage) {
+      setPageInput(String(readerState.currentPage));
+    }
   }, [readerState.currentPage]);
 
   useEffect(() => {
+    if (!isReaderReady) {
+      setHudVisible(false);
+      return;
+    }
+
     if (aiDialogOpen || recapDialogOpen || fontDialogOpen || layoutDialogOpen || isRecapPanelOpen) {
       setHudVisible(true);
       if (hudTimerRef.current) {
@@ -146,23 +157,55 @@ export default function ReaderPage() {
         window.clearTimeout(hudTimerRef.current);
       }
     };
-  }, [aiDialogOpen, fontDialogOpen, isRecapPanelOpen, layoutDialogOpen, recapDialogOpen, readerState.currentPage]);
+  }, [aiDialogOpen, fontDialogOpen, isReaderReady, isRecapPanelOpen, layoutDialogOpen, recapDialogOpen, readerState.currentPage]);
 
   useEffect(() => {
     function handleKeyDown(event) {
-      if (event.key === "ArrowLeft") {
+      if (event.key === "Escape") {
+        readerRef.current?.clearFocus?.();
+        document.activeElement?.blur?.();
+        return;
+      }
+
+      if (!isReaderReady) {
+        return;
+      }
+
+      const tagName = event.target?.tagName;
+      if (tagName === "INPUT" || tagName === "TEXTAREA") {
+        return;
+      }
+
+      if (layoutMode.startsWith("horizontal")) {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          readerRef.current?.prev?.();
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          readerRef.current?.next?.();
+        }
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
         readerRef.current?.prev?.();
       }
-      if (event.key === "ArrowRight") {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
         readerRef.current?.next?.();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isReaderReady, layoutMode]);
 
   function revealHud() {
+    if (!isReaderReady) {
+      return;
+    }
     setHudVisible(true);
     if (hudTimerRef.current) {
       window.clearTimeout(hudTimerRef.current);
@@ -217,7 +260,7 @@ export default function ReaderPage() {
   async function handleGoToPage() {
     const pageNumber = Number(pageInput);
     if (!Number.isFinite(pageNumber)) {
-      setPageInput(String(readerState.currentPage));
+      setPageInput(String(readerState.currentPage || ""));
       return;
     }
 
@@ -258,27 +301,58 @@ export default function ReaderPage() {
       style={readerPageStyle}
       onMouseMove={revealHud}
       onTouchStart={revealHud}
-      onClick={revealHud}
+      onClick={() => {
+        closeTransientPanels();
+        revealHud();
+      }}
     >
       <button
         type="button"
         onClick={() => navigate("/library")}
         style={{
           ...backStyle,
-          opacity: hudVisible ? 1 : 0,
-          pointerEvents: hudVisible ? "auto" : "none",
+          opacity: hudVisible && isReaderReady ? 1 : 0,
+          pointerEvents: hudVisible && isReaderReady ? "auto" : "none",
         }}
       >
-        <ArrowLeftTurnIcon />
+        <BackIcon />
       </button>
 
       <div style={readerShellStyle}>
+        {isReaderLoading ? (
+          <div style={loadingOverlayStyle}>
+            <p style={loadingTitleStyle}>Opening book...</p>
+            <p style={loadingTextStyle}>
+              Fetching the file first, then page metadata will fill in as the reader settles.
+            </p>
+          </div>
+        ) : null}
+
+        {isReaderReady && layoutMode.startsWith("horizontal") ? (
+          <>
+            <button
+              type="button"
+              onClick={() => readerRef.current?.prev?.()}
+              style={{ ...edgeTurnZoneStyle, left: 0 }}
+              aria-label="Previous page"
+            />
+            <button
+              type="button"
+              onClick={() => readerRef.current?.next?.()}
+              style={{ ...edgeTurnZoneStyle, right: 0 }}
+              aria-label="Next page"
+            />
+          </>
+        ) : null}
+
         <ReaderComponent
           ref={readerRef}
           bookUrl={bookUrl}
           initialCfi={initialCfi}
           onPositionChange={handlePositionChange}
           onReaderStateChange={setReaderState}
+          onLoadingChange={setIsReaderLoading}
+          onReadyChange={setIsReaderReady}
           layoutMode={layoutMode}
           fontScale={fontScale}
           fontFamily={fontFamily}
@@ -286,11 +360,19 @@ export default function ReaderPage() {
       </div>
 
       <div
+        style={bottomRevealStripStyle}
+        onMouseEnter={revealHud}
+        onMouseMove={revealHud}
+      />
+
+      <div
         style={{
           ...hudBarWrapStyle,
-          transform: hudVisible ? "translate(-50%, 0)" : "translate(-50%, 130%)",
-          opacity: hudVisible ? 1 : 0,
+          transform: hudVisible && isReaderReady ? "translate(-50%, 0)" : "translate(-50%, 130%)",
+          opacity: hudVisible && isReaderReady ? 1 : 0,
+          pointerEvents: hudVisible && isReaderReady ? "auto" : "none",
         }}
+        onMouseEnter={revealHud}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={hudBarStyle}>
@@ -301,7 +383,7 @@ export default function ReaderPage() {
               style={secondaryIconButtonStyle}
               aria-label="Back to library"
             >
-              <ArrowLeftTurnIcon />
+              <BackIcon />
             </button>
             <button
               type="button"
@@ -344,17 +426,23 @@ export default function ReaderPage() {
                 handleGoToPage().catch(() => {});
               }}
             >
-              <input
-                value={pageInput}
-                onChange={(event) => setPageInput(event.target.value.replace(/[^\d]/g, ""))}
-                onBlur={() => {
-                  handleGoToPage().catch(() => {});
-                }}
-                inputMode="numeric"
-                style={pageInputStyle}
-                aria-label="Current page"
-              />
-              <span style={pageTotalStyle}>/ {readerState.totalPages}</span>
+              {readerState.totalPages ? (
+                <>
+                  <input
+                    value={pageInput}
+                    onChange={(event) => setPageInput(event.target.value.replace(/[^\d]/g, ""))}
+                    onBlur={() => {
+                      handleGoToPage().catch(() => {});
+                    }}
+                    inputMode="numeric"
+                    style={pageInputStyle}
+                    aria-label="Current page"
+                  />
+                  <span style={pageTotalStyle}>/ {readerState.totalPages}</span>
+                </>
+              ) : (
+                <span style={pageTotalStyle}>Page map loading...</span>
+              )}
             </form>
             <button
               type="button"
@@ -399,7 +487,12 @@ export default function ReaderPage() {
 
         {layoutDialogOpen ? (
           <section style={{ ...popoverStyle, ...layoutPopoverStyle }}>
-            <p style={popoverTitleStyle}>Reading mode</p>
+            <div style={popoverHeaderStyle}>
+              <p style={popoverTitleStyle}>Reading mode</p>
+              <button type="button" onClick={() => setLayoutDialogOpen(false)} style={closePopoverButtonStyle}>
+                <CloseIcon />
+              </button>
+            </div>
             <div style={optionListStyle}>
               {ORIENTATION_OPTIONS.map((option) => (
                 <button
@@ -424,7 +517,12 @@ export default function ReaderPage() {
 
         {fontDialogOpen ? (
           <section style={{ ...popoverStyle, ...fontPopoverStyle }}>
-            <p style={popoverTitleStyle}>Text appearance</p>
+            <div style={popoverHeaderStyle}>
+              <p style={popoverTitleStyle}>Text appearance</p>
+              <button type="button" onClick={() => setFontDialogOpen(false)} style={closePopoverButtonStyle}>
+                <CloseIcon />
+              </button>
+            </div>
             <div style={fontScaleRowStyle}>
               <button
                 type="button"
@@ -478,7 +576,12 @@ export default function ReaderPage() {
 
         {recapDialogOpen ? (
           <section style={{ ...popoverStyle, ...recapPopoverStyle }}>
-            <p style={popoverTitleStyle}>Recap depth</p>
+            <div style={popoverHeaderStyle}>
+              <p style={popoverTitleStyle}>Recap depth</p>
+              <button type="button" onClick={() => setRecapDialogOpen(false)} style={closePopoverButtonStyle}>
+                <CloseIcon />
+              </button>
+            </div>
             <div style={{ display: "flex", justifyContent: "center" }}>
               <RecapLevelIndicator level={currentLevel} />
             </div>
@@ -502,7 +605,12 @@ export default function ReaderPage() {
 
         {aiDialogOpen ? (
           <section style={{ ...popoverStyle, ...aiPopoverStyle }}>
-            <p style={popoverTitleStyle}>AI processing</p>
+            <div style={popoverHeaderStyle}>
+              <p style={popoverTitleStyle}>AI processing</p>
+              <button type="button" onClick={() => setAIDialogOpen(false)} style={closePopoverButtonStyle}>
+                <CloseIcon />
+              </button>
+            </div>
             <p style={statusLineStyle}>
               {aiStatusLabel}
               {typeof ingestion.progress === "number" ? ` · ${ingestion.progress}%` : ""}
@@ -642,11 +750,18 @@ function LayoutIcon() {
   );
 }
 
-function ArrowLeftTurnIcon() {
+function BackIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-      <path d="M9 7 4 12l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M20 18v-3.3a4.7 4.7 0 0 0-4.7-4.7H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 6 9 12l6 6" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+      <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -684,6 +799,43 @@ const readerShellStyle = {
   overflow: "hidden",
 };
 
+const loadingOverlayStyle = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 6,
+  display: "grid",
+  placeItems: "center",
+  textAlign: "center",
+  padding: "2rem",
+  background:
+    "linear-gradient(180deg, rgba(248, 241, 228, 0.98), rgba(243, 233, 216, 0.96))",
+};
+
+const loadingTitleStyle = {
+  margin: 0,
+  fontSize: "1.15rem",
+  fontWeight: 800,
+  color: "#2e241a",
+};
+
+const loadingTextStyle = {
+  margin: "0.6rem 0 0",
+  maxWidth: 420,
+  lineHeight: 1.6,
+  color: "#6d6153",
+};
+
+const edgeTurnZoneStyle = {
+  position: "absolute",
+  top: 0,
+  bottom: 0,
+  zIndex: 5,
+  width: "clamp(56px, 9vw, 120px)",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+};
+
 const hudBarWrapStyle = {
   position: "fixed",
   left: "50%",
@@ -691,6 +843,16 @@ const hudBarWrapStyle = {
   zIndex: 35,
   width: "min(960px, calc(100vw - 24px))",
   transition: "transform 220ms ease, opacity 220ms ease",
+};
+
+const bottomRevealStripStyle = {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 20,
+  height: 96,
+  background: "transparent",
 };
 
 const hudBarStyle = {
@@ -802,6 +964,24 @@ const popoverTitleStyle = {
   margin: 0,
   fontSize: "0.96rem",
   fontWeight: 800,
+};
+
+const popoverHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+};
+
+const closePopoverButtonStyle = {
+  display: "grid",
+  placeItems: "center",
+  width: 28,
+  height: 28,
+  border: "none",
+  borderRadius: 999,
+  background: "rgba(32, 26, 20, 0.08)",
+  color: "#31261d",
 };
 
 const popoverBodyStyle = {

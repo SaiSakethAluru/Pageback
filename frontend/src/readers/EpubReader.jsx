@@ -10,6 +10,8 @@ const EpubReader = forwardRef(function EpubReader(
     fontScale = 100,
     fontFamily = "Georgia, serif",
     onReaderStateChange,
+    onLoadingChange,
+    onReadyChange,
   },
   ref,
 ) {
@@ -19,6 +21,9 @@ const EpubReader = forwardRef(function EpubReader(
   const latestCfiRef = useRef(initialCfi ?? null);
   const onPositionChangeRef = useRef(onPositionChange);
   const onReaderStateChangeRef = useRef(onReaderStateChange);
+  const onLoadingChangeRef = useRef(onLoadingChange);
+  const onReadyChangeRef = useRef(onReadyChange);
+  const locationsReadyRef = useRef(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -28,6 +33,14 @@ const EpubReader = forwardRef(function EpubReader(
   useEffect(() => {
     onReaderStateChangeRef.current = onReaderStateChange;
   }, [onReaderStateChange]);
+
+  useEffect(() => {
+    onLoadingChangeRef.current = onLoadingChange;
+  }, [onLoadingChange]);
+
+  useEffect(() => {
+    onReadyChangeRef.current = onReadyChange;
+  }, [onReadyChange]);
 
   useEffect(() => {
     if (initialCfi) {
@@ -53,6 +66,7 @@ const EpubReader = forwardRef(function EpubReader(
     let rendition = null;
     let book = null;
     let handleRelocated = null;
+    let handleContentKeyDown = null;
 
     const layoutConfig = getLayoutConfig(layoutMode);
 
@@ -61,28 +75,39 @@ const EpubReader = forwardRef(function EpubReader(
         return;
       }
 
+      const mappedPage = bookRef.current.pageList?.pageFromCfi?.(location.start.cfi) ?? -1;
+      const hasPageList = mappedPage !== -1;
       const hasGeneratedLocations =
+        !hasPageList &&
+        locationsReadyRef.current &&
         typeof bookRef.current.locations?.length === "function" &&
         bookRef.current.locations.length() > 0;
-      const currentPage = hasGeneratedLocations
-        ? bookRef.current.locations.locationFromCfi(location.start.cfi) + 1
-        : location.start.displayed.page;
-      const totalPages = hasGeneratedLocations
-        ? bookRef.current.locations.length()
-        : location.start.displayed.total;
+      const currentPage = hasPageList
+        ? mappedPage
+        : hasGeneratedLocations
+          ? bookRef.current.locations.locationFromCfi(location.start.cfi) + 1
+          : null;
+      const totalPages = hasPageList
+        ? bookRef.current.pageList.lastPage || null
+        : hasGeneratedLocations
+          ? bookRef.current.locations.length()
+          : null;
 
       onReaderStateChangeRef.current?.({
         atStart: Boolean(location.atStart),
         atEnd: Boolean(location.atEnd),
         canGoPrevious: !location.atStart,
         canGoNext: !location.atEnd,
-        currentPage: Number.isFinite(currentPage) ? Math.max(1, currentPage) : 1,
-        totalPages: Number.isFinite(totalPages) ? Math.max(1, totalPages) : 1,
+        currentPage: Number.isFinite(currentPage) ? Math.max(1, currentPage) : null,
+        totalPages: Number.isFinite(totalPages) ? Math.max(1, totalPages) : null,
       });
     }
 
     async function loadBook() {
       setError("");
+      locationsReadyRef.current = false;
+      onLoadingChangeRef.current?.(true);
+      onReadyChangeRef.current?.(false);
 
       try {
         const response = await fetch(bookUrl);
@@ -112,10 +137,49 @@ const EpubReader = forwardRef(function EpubReader(
             "line-height": "1.65",
             color: "#211d19",
             background: "transparent",
+            "caret-color": "transparent",
+            outline: "none",
           },
         });
         rendition.themes.fontSize(`${fontScale}%`);
         rendition.themes.font(fontFamily);
+
+        handleContentKeyDown = (event) => {
+          if (event.defaultPrevented) {
+            return;
+          }
+
+          if (event.key === "Escape") {
+            clearRenditionFocus(rendition);
+            event.preventDefault();
+            return;
+          }
+
+          if (layoutMode.startsWith("horizontal")) {
+            if (event.key === "ArrowLeft") {
+              rendition.prev();
+              event.preventDefault();
+            }
+            if (event.key === "ArrowRight") {
+              rendition.next();
+              event.preventDefault();
+            }
+            return;
+          }
+
+          if (event.key === "ArrowUp") {
+            rendition.prev();
+            event.preventDefault();
+          }
+          if (event.key === "ArrowDown") {
+            rendition.next();
+            event.preventDefault();
+          }
+        };
+
+        rendition.hooks.content.register((contents) => {
+          contents.document?.addEventListener("keydown", handleContentKeyDown, true);
+        });
 
         handleRelocated = (location) => {
           const cfi = location?.start?.cfi ?? null;
@@ -130,11 +194,6 @@ const EpubReader = forwardRef(function EpubReader(
 
         rendition.on("relocated", handleRelocated);
         await book.ready;
-        try {
-          await book.locations.generate(1650);
-        } catch {
-          // If locations fail to generate we fall back to section-local page counts.
-        }
 
         const targetCfi = latestCfiRef.current ?? initialCfi;
         if (targetCfi) {
@@ -143,10 +202,26 @@ const EpubReader = forwardRef(function EpubReader(
           await rendition.display();
         }
         emitReaderState(rendition.currentLocation());
+        onReadyChangeRef.current?.(true);
+        onLoadingChangeRef.current?.(false);
+
+        book.locations
+          .generate(1650)
+          .then(() => {
+            if (isCancelled) {
+              return;
+            }
+            locationsReadyRef.current = true;
+            emitReaderState(rendition.currentLocation());
+          })
+          .catch(() => {
+            // If locations fail to generate we keep the book readable and omit absolute page counts.
+          });
       } catch (loadError) {
         if (!isCancelled) {
           setError(loadError instanceof Error ? loadError.message : "Could not open this EPUB.");
         }
+        onLoadingChangeRef.current?.(false);
       }
     }
 
@@ -156,6 +231,12 @@ const EpubReader = forwardRef(function EpubReader(
       isCancelled = true;
       if (rendition && handleRelocated) {
         rendition.off("relocated", handleRelocated);
+      }
+      if (rendition && handleContentKeyDown) {
+        const contents = rendition.getContents?.() ?? [];
+        contents.forEach((content) => {
+          content.document?.removeEventListener("keydown", handleContentKeyDown, true);
+        });
       }
       if (rendition) {
         rendition.destroy();
@@ -181,6 +262,12 @@ const EpubReader = forwardRef(function EpubReader(
         return false;
       }
 
+      const targetFromPageList = bookRef.current.pageList?.cfiFromPage?.(pageNumber);
+      if (targetFromPageList && targetFromPageList !== -1) {
+        await renditionRef.current.display(targetFromPageList);
+        return true;
+      }
+
       const totalPages =
         typeof bookRef.current.locations?.length === "function" ? bookRef.current.locations.length() : 0;
       if (!totalPages) {
@@ -195,6 +282,14 @@ const EpubReader = forwardRef(function EpubReader(
 
       await renditionRef.current.display(targetCfi);
       return true;
+    },
+    clearFocus() {
+      const contents = renditionRef.current?.getContents?.() ?? [];
+      contents.forEach((content) => {
+        content.document?.activeElement?.blur?.();
+        content.window?.getSelection?.()?.removeAllRanges?.();
+      });
+      document.activeElement?.blur?.();
     },
   }));
 
@@ -236,6 +331,14 @@ function getLayoutConfig(layoutMode) {
         spread: "auto",
       };
   }
+}
+
+function clearRenditionFocus(rendition) {
+  const contents = rendition?.getContents?.() ?? [];
+  contents.forEach((content) => {
+    content.document?.activeElement?.blur?.();
+    content.window?.getSelection?.()?.removeAllRanges?.();
+  });
 }
 
 const errorStyle = {
