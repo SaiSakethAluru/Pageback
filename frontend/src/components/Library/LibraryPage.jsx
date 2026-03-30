@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 
 import * as api from "../../services/api";
 import BookCard from "./BookCard";
+import MetadataEditorModal from "./MetadataEditorModal";
 import UploadButton from "./UploadButton";
 
 export default function LibraryPage() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [editingBook, setEditingBook] = useState(null);
 
   async function loadBooks() {
     setLoading(true);
@@ -24,6 +26,20 @@ export default function LibraryPage() {
   async function handleLogout() {
     await api.logout();
     window.location.href = "/login";
+  }
+
+  function handleMetadataSaved(bookId, updatedMetadata) {
+    setBooks((currentBooks) =>
+      currentBooks.map((book) =>
+        book.id === bookId
+          ? {
+              ...book,
+              title: updatedMetadata.title ?? null,
+              author: updatedMetadata.author ?? null,
+            }
+          : book
+      )
+    );
   }
 
   return (
@@ -49,9 +65,21 @@ export default function LibraryPage() {
 
       <div style={gridStyle}>
         {books.map((book) => (
-          <BookCard key={book.id} book={book} />
+          <BookCard
+            key={book.id}
+            book={book}
+            onDelete={() => setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== book.id))}
+            onEditMetadata={setEditingBook}
+          />
         ))}
       </div>
+
+      <MetadataEditorModal
+        book={editingBook}
+        isOpen={Boolean(editingBook)}
+        onClose={() => setEditingBook(null)}
+        onSaved={handleMetadataSaved}
+      />
     </div>
   );
 }
@@ -59,7 +87,10 @@ export default function LibraryPage() {
 const pageStyle = {
   minHeight: "100vh",
   padding: "2rem",
-  background: "linear-gradient(180deg, #f6f1e6 0%, #eee6d8 100%)",
+  background:
+    "radial-gradient(circle at top, rgba(255,255,255,0.5), transparent 32%), linear-gradient(180deg, #f6f0e4 0%, #eee1cd 100%)",
+  cursor: "default",
+  caretColor: "transparent",
 };
 
 const headerStyle = {
@@ -72,8 +103,8 @@ const headerStyle = {
 
 const gridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-  gap: "1rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
+  gap: "1.35rem",
 };
 
 const actionsStyle = {
@@ -89,4 +120,5 @@ const logoutStyle = {
   background: "#fff8ef",
   color: "#17313e",
   fontWeight: 600,
+  cursor: "pointer",
 };

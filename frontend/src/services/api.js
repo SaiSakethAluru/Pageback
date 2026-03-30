@@ -61,6 +61,24 @@ export async function getBooks() {
   });
 }
 
+export async function deleteBook(bookId) {
+  return request(`/api/v1/books/${bookId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
+export async function updateBookMetadata(bookId, metadata) {
+  return request(`/api/v1/books/${bookId}/metadata`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(metadata),
+  });
+}
+
 export async function savePosition(bookId, positionCfi, positionChar) {
   return request(`/api/v1/positions/${bookId}`, {
     method: "PUT",

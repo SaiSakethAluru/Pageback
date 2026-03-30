@@ -46,6 +46,10 @@ Returns the current ingestion status.
 
 Returns the authenticated user's library.
 
+### `PATCH /api/v1/books/<book_id>/metadata`
+
+Updates the authenticated user's book title and author metadata.
+
 ### `PUT /api/v1/positions/<book_id>`
 
 Upserts the saved reading position.
@@ -154,7 +158,8 @@ Add these optional columns to the `books` table:
 alter table public.books
   add column if not exists ingestion_progress integer,
   add column if not exists ingestion_step text,
-  add column if not exists ingestion_error text;
+  add column if not exists ingestion_error text,
+  add column if not exists cover_path text;
 ```
 
 Embedding note (important):
