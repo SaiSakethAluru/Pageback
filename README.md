@@ -67,6 +67,15 @@ On macOS with Homebrew, install Redis with:
 brew install redis
 ```
 
+## Supabase Schema Source Of Truth
+
+The repository now tracks database structure in [`supabase/migrations/`](/Users/saketh/Projects/Pageback/supabase/migrations).
+
+- The checked-in migrations are the intended source of truth for tables, indexes, RPCs, and required storage bucket setup.
+- The current migrations include a baseline captured from the existing hosted Supabase project plus a follow-up alignment migration for app/code mismatches.
+- The generated Supabase CLI config lives in [`supabase/config.toml`](/Users/saketh/Projects/Pageback/supabase/config.toml).
+- See [`supabase/README.md`](/Users/saketh/Projects/Pageback/supabase/README.md) for notes on what was aligned and why.
+
 ### 2. Configure Supabase
 
 You need a Supabase project with:
