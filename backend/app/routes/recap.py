@@ -4,7 +4,6 @@ from flask import Blueprint, jsonify, request
 
 from app.auth import current_user_id, require_auth
 from app.bootstrap import get_container
-from app.services.llm import provider_factory
 from app.interfaces.http.mappers import parse_recap_request, serialize_recap_levels
 
 recap_bp = Blueprint("recap", __name__, url_prefix="/api/v1/recap")

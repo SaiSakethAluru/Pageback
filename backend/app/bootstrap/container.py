@@ -9,6 +9,7 @@ from app.application.auth.service import AuthApplicationService
 from app.application.books.service import BookService
 from app.application.positions.service import ReadingPositionService
 from app.application.recap.service import RecapService, WindowResolverService
+from app.application.system.service import SystemInfoService
 from app.infrastructure.db.supabase import create_supabase_client
 from app.infrastructure.db.supabase.repositories import (
     SupabaseBookRepository,
@@ -33,6 +34,7 @@ class ApplicationContainer:
     ingestion_workflow: BookIngestionWorkflow
     position_service: ReadingPositionService
     recap_service: RecapService
+    system_service: SystemInfoService
     window_resolver: WindowResolverService
 
 
@@ -66,5 +68,6 @@ def get_container() -> ApplicationContainer:
         ),
         position_service=ReadingPositionService(position_repository),
         recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),
+        system_service=SystemInfoService(llm_gateway),
         window_resolver=window_resolver,
     )

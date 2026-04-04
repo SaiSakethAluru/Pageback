@@ -10,7 +10,6 @@ from app.bootstrap import get_container
 from app.interfaces.http.errors import error_response
 from app.interfaces.http.mappers import parse_book_metadata_update, parse_upload_request
 from app.services import recap_cache
-from app.services.llm import provider_factory
 
 books_bp = Blueprint("books", __name__, url_prefix="/api/v1/books")
 
@@ -56,7 +55,7 @@ def get_book_status(book_id: str):
     if not status:
         return error_response(NotFoundError("Book not found"))
 
-    provider = provider_factory.get_provider()
+    provider = get_container().system_service.get_llm_provider_info()
     return jsonify(
         {
             "book_id": book_id,
@@ -65,7 +64,7 @@ def get_book_status(book_id: str):
             "step": status.step,
             "error": status.error,
             "llm": {
-                "provider": provider.provider_name,
+                "provider": provider.provider,
                 "recap_model": provider.recap_model,
                 "embedding_model": provider.embedding_model,
             },
