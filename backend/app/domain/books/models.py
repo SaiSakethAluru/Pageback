@@ -26,3 +26,15 @@ class Book:
     ingestion: IngestionInfo
     cover_path: str | None = None
     created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class BookChunk:
+    book_id: str
+    chapter_index: int
+    chunk_index: int
+    start_char: int
+    end_char: int
+    token_count: int
+    text: str
+    embedding: list[float] | None = None

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from app.domain.recap.models import LLMGateway
 
 
-class BaseLLMProvider(ABC):
+class BaseLLMProvider(LLMGateway):
     provider_name = "unknown"
     recap_model = ""
     embedding_model = ""

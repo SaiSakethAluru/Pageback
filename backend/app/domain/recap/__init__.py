@@ -1,3 +1,3 @@
-from app.domain.recap.models import UsageLogRepository
+from app.domain.recap.models import LLMGateway, RecapCache, UsageLogRepository
 
-__all__ = ["UsageLogRepository"]
+__all__ = ["LLMGateway", "RecapCache", "UsageLogRepository"]

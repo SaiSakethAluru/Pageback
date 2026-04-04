@@ -3,16 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 
+from app.application.books.ingestion_service import BookIngestionService
 from app.application.auth.service import AuthApplicationService
 from app.application.books.service import BookService
 from app.application.positions.service import ReadingPositionService
+from app.application.recap.service import RecapService, WindowResolverService
 from app.infrastructure.db.supabase import create_supabase_client
 from app.infrastructure.db.supabase.repositories import (
     SupabaseBookRepository,
     SupabaseChunkRepository,
     SupabaseReadingPositionRepository,
+    SupabaseUsageLogRepository,
     SupabaseUserRepository,
 )
+from app.infrastructure.cache import InMemoryRecapCache
+from app.infrastructure.llm import get_llm_gateway
 from app.infrastructure.storage import SupabaseBookStorage
 
 
@@ -20,7 +25,10 @@ from app.infrastructure.storage import SupabaseBookStorage
 class ApplicationContainer:
     auth_service: AuthApplicationService
     book_service: BookService
+    ingestion_service: BookIngestionService
     position_service: ReadingPositionService
+    recap_service: RecapService
+    window_resolver: WindowResolverService
 
 
 @lru_cache(maxsize=1)
@@ -29,9 +37,15 @@ def get_container() -> ApplicationContainer:
     position_repository = SupabaseReadingPositionRepository(create_supabase_client)
     chunk_repository = SupabaseChunkRepository(create_supabase_client)
     user_repository = SupabaseUserRepository(create_supabase_client)
+    usage_log_repository = SupabaseUsageLogRepository(create_supabase_client)
     book_storage = SupabaseBookStorage(create_supabase_client)
+    llm_gateway = get_llm_gateway()
+    window_resolver = WindowResolverService(chunk_repository, llm_gateway)
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
         book_service=BookService(book_repository, book_storage, chunk_repository, position_repository),
+        ingestion_service=BookIngestionService(book_repository, book_storage, chunk_repository, llm_gateway),
         position_service=ReadingPositionService(position_repository),
+        recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),
+        window_resolver=window_resolver,
     )

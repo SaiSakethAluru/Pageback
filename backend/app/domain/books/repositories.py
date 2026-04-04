@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.domain.books.models import Book, BookMetadata, IngestionInfo
+from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo
 
 
 class BookRepository(ABC):
@@ -38,6 +38,24 @@ class BookRepository(ABC):
 class ChunkRepository(ABC):
     @abstractmethod
     def delete_by_book(self, book_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def replace_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_before_position(self, book_id: str, position_char: int) -> list[BookChunk]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_similar(
+        self,
+        book_id: str,
+        query_embedding: list[float],
+        max_char_offset: int,
+        token_budget: int,
+    ) -> list[BookChunk]:
         raise NotImplementedError
 
 

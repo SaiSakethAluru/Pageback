@@ -1,95 +1,77 @@
-from types import SimpleNamespace
+from app.application.recap.service import WindowResolverService
+from app.domain.books.models import BookChunk
 
-from app.services import window_resolver
 
-
-class QueryBuilder:
+class ChunkRepositoryStub:
     def __init__(self, rows):
         self.rows = rows
+        self.search_calls = []
 
-    def select(self, _fields):
-        return self
+    def find_before_position(self, _book_id, _position_char):
+        return self.rows
 
-    def eq(self, _field, _value):
-        return self
-
-    def lte(self, _field, _value):
-        return self
-
-    def order(self, _field, desc=False):
-        if desc:
-            self.rows = sorted(self.rows, key=lambda row: row["end_char"], reverse=True)
-        return self
-
-    def execute(self):
-        return SimpleNamespace(data=self.rows)
+    def search_similar(self, **kwargs):
+        self.search_calls.append(kwargs)
+        return self.rows
 
 
-class SupabaseStub:
-    def __init__(self, rows):
-        self.rows = rows
-        self.rpc_calls = []
+class LLMStub:
+    provider_name = "stub"
+    recap_model = "stub-model"
+    embedding_model = "stub-embedding"
 
-    def table(self, _name):
-        return QueryBuilder(self.rows)
+    def embed(self, _text):
+        return [0.1, 0.2]
 
-    def rpc(self, name, params):
-        self.rpc_calls.append((name, params))
-        return SimpleNamespace(execute=lambda: SimpleNamespace(data=self.rows))
+    def recap(self, text_window, level):
+        return f"{level}:{text_window}"
+
+    def embed_batch(self, texts):
+        return [[0.1, 0.2] for _ in texts]
 
 
-def test_level_one_uses_150_token_budget(monkeypatch):
+def test_level_one_uses_150_token_budget():
     rows = [
-        {"text": "first", "token_count": 100, "end_char": 100},
-        {"text": "second", "token_count": 100, "end_char": 80},
+        BookChunk("book", 0, 0, 0, 100, 100, "first"),
+        BookChunk("book", 0, 1, 0, 80, 100, "second"),
     ]
-    supabase = SupabaseStub(rows)
-    monkeypatch.setattr(window_resolver, "_supabase", lambda: supabase)
+    service = WindowResolverService(ChunkRepositoryStub(rows), LLMStub())
 
-    result = window_resolver.resolve("book", 100, 1)
+    result = service.resolve("book", 100, 1)
 
     assert result == "first"
 
 
-def test_spoiler_fence_is_respected(monkeypatch):
-    rows = [
-        {"text": "allowed", "token_count": 50, "end_char": 90},
-        {"text": "blocked", "token_count": 50, "end_char": 150},
-    ]
-    supabase = SupabaseStub([rows[0]])
-    monkeypatch.setattr(window_resolver, "_supabase", lambda: supabase)
+def test_spoiler_fence_is_respected():
+    rows = [BookChunk("book", 0, 0, 0, 90, 50, "allowed")]
+    service = WindowResolverService(ChunkRepositoryStub(rows), LLMStub())
 
-    result = window_resolver.resolve("book", 100, 1)
+    result = service.resolve("book", 100, 1)
 
-    assert "blocked" not in result
     assert "allowed" in result
 
 
-def test_levels_three_to_five_use_match_chunks(monkeypatch):
+def test_levels_three_to_five_use_match_chunks():
     rows = [
-        {"text": "chunk one", "token_count": 100, "end_char": 90},
-        {"text": "chunk two", "token_count": 100, "end_char": 95},
+        BookChunk("book", 0, 0, 0, 90, 100, "chunk one"),
+        BookChunk("book", 0, 1, 0, 95, 100, "chunk two"),
     ]
-    supabase = SupabaseStub(rows)
-    provider = SimpleNamespace(embed=lambda _text: [0.1, 0.2])
-    monkeypatch.setattr(window_resolver, "_supabase", lambda: supabase)
-    monkeypatch.setattr(window_resolver, "get_provider", lambda: provider)
+    repo = ChunkRepositoryStub(rows)
+    service = WindowResolverService(repo, LLMStub())
 
-    result = window_resolver.resolve("book", 100, 3)
+    result = service.resolve("book", 100, 3)
 
-    assert supabase.rpc_calls[0][0] == "match_chunks"
-    assert supabase.rpc_calls[0][1]["p_book_id"] == "book"
+    assert repo.search_calls[0]["book_id"] == "book"
     assert result == "chunk one\n\nchunk two"
 
 
-def test_chunks_join_with_double_newlines(monkeypatch):
+def test_chunks_join_with_double_newlines():
     rows = [
-        {"text": "alpha", "token_count": 50, "end_char": 70},
-        {"text": "beta", "token_count": 50, "end_char": 50},
+        BookChunk("book", 0, 0, 0, 70, 50, "alpha"),
+        BookChunk("book", 0, 1, 0, 50, 50, "beta"),
     ]
-    supabase = SupabaseStub(rows)
-    monkeypatch.setattr(window_resolver, "_supabase", lambda: supabase)
+    service = WindowResolverService(ChunkRepositoryStub(rows), LLMStub())
 
-    result = window_resolver.resolve("book", 100, 1)
+    result = service.resolve("book", 100, 1)
 
     assert result == "alpha\n\nbeta"

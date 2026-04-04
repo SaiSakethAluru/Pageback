@@ -7,9 +7,9 @@ from app.services.ingestion import ingest_book
 
 
 @pytest.mark.integration
-def test_ingestion_pipeline_stores_chunks_and_embeddings(supabase_client, cleanup_book):
+def test_ingestion_pipeline_stores_chunks_and_embeddings(supabase_client, cleanup_book, test_user_id):
     fixture = Path(__file__).resolve().parents[1] / "fixtures" / "sample.epub"
-    user_id = "00000000-0000-0000-0000-000000000000"
+    user_id = test_user_id
     book_id = str(uuid4())
     storage_path = f"{user_id}/{book_id}/original.epub"
 
