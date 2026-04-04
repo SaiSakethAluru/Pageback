@@ -1,4 +1,5 @@
 from app.application.auth.service import AuthApplicationService
+from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.books.service import BookService
 from app.application.recap.service import RecapService, WindowResolverService
 from app.domain.auth.models import AuthIdentity, User
@@ -170,6 +171,15 @@ class UsageLogStub:
         self.calls.append(kwargs)
 
 
+class QueueStub:
+    def __init__(self):
+        self.calls = []
+
+    def enqueue(self, book_id: str, user_id: str, storage_path: str):
+        self.calls.append((book_id, user_id, storage_path))
+        return "task-123"
+
+
 def test_auth_application_service_returns_user_dto():
     service = AuthApplicationService(UserRepoStub())
 
@@ -240,3 +250,21 @@ def test_recap_service_generates_summary_and_logs_usage():
     assert result.cached is False
     assert result.summary == "1:alpha\n\nbeta"
     assert usage_logs.calls
+
+
+def test_ingestion_workflow_enqueues_background_job_and_updates_status():
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks = ChunkRepoStub()
+    positions = PositionRepoStub()
+    book_service = BookService(books, storage, chunks, positions)
+    created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
+    queue = QueueStub()
+    workflow = BookIngestionWorkflow(book_service, queue)
+
+    book, result = workflow.start(created.id, "u1", background=True)
+
+    assert book is not None
+    assert result.status == "processing"
+    assert result.task_id == "task-123"
+    assert queue.calls == [(created.id, "u1", created.storage_path)]

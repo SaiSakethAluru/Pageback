@@ -11,7 +11,6 @@ from app.interfaces.http.errors import error_response
 from app.interfaces.http.mappers import parse_book_metadata_update, parse_upload_request
 from app.services import recap_cache
 from app.services.llm import provider_factory
-from app.tasks.ingestion_tasks import ingest_book_task
 
 books_bp = Blueprint("books", __name__, url_prefix="/api/v1/books")
 
@@ -81,25 +80,17 @@ def start_ingestion(book_id: str):
     payload = request.get_json(silent=True) or {}
     background = bool(payload.get("background", True))
 
-    book = get_container().book_service.get_book(book_id, user_id)
+    book, result = get_container().ingestion_workflow.start(book_id, user_id, background)
     if not book:
         return error_response(NotFoundError("Book not found"))
-    get_container().book_service.update_ingestion_status(
-        book_id,
-        status="processing",
-        progress=0,
-        step="queued",
-        error=None,
-    )
 
     if not background:
         from app.services.ingestion import ingest_book
 
         ingest_book(book_id=book_id, user_id=user_id, storage_path=book.storage_path)
-        return jsonify({"book_id": book_id, "status": "complete"})
+        return jsonify({"book_id": book_id, "status": result.status})
 
-    task = ingest_book_task.delay(book_id, user_id, book.storage_path)
-    return jsonify({"book_id": book_id, "status": "processing", "celery_task_id": task.id})
+    return jsonify({"book_id": book_id, "status": result.status, "celery_task_id": result.task_id})
 
 
 @books_bp.get("/")

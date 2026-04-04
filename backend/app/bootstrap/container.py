@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from app.application.books.ingestion_service import BookIngestionService
+from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.auth.service import AuthApplicationService
 from app.application.books.service import BookService
 from app.application.positions.service import ReadingPositionService
@@ -20,6 +21,7 @@ from app.infrastructure.cache import InMemoryRecapCache
 from app.infrastructure.llm import get_llm_gateway
 from app.infrastructure.parsers import EpubMetadataExtractor, get_parser_factory
 from app.infrastructure.storage import SupabaseBookStorage
+from app.infrastructure.tasks import CeleryBookIngestionQueue
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,7 @@ class ApplicationContainer:
     book_service: BookService
     book_metadata_extractor: EpubMetadataExtractor
     ingestion_service: BookIngestionService
+    ingestion_workflow: BookIngestionWorkflow
     position_service: ReadingPositionService
     recap_service: RecapService
     window_resolver: WindowResolverService
@@ -43,10 +46,12 @@ def get_container() -> ApplicationContainer:
     book_storage = SupabaseBookStorage(create_supabase_client)
     llm_gateway = get_llm_gateway()
     parser_factory = get_parser_factory()
+    ingestion_queue = CeleryBookIngestionQueue()
+    book_service = BookService(book_repository, book_storage, chunk_repository, position_repository)
     window_resolver = WindowResolverService(chunk_repository, llm_gateway)
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
-        book_service=BookService(book_repository, book_storage, chunk_repository, position_repository),
+        book_service=book_service,
         book_metadata_extractor=EpubMetadataExtractor(),
         ingestion_service=BookIngestionService(
             book_repository,
@@ -54,6 +59,10 @@ def get_container() -> ApplicationContainer:
             chunk_repository,
             llm_gateway,
             parser_factory,
+        ),
+        ingestion_workflow=BookIngestionWorkflow(
+            book_service,
+            ingestion_queue,
         ),
         position_service=ReadingPositionService(position_repository),
         recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),
