@@ -1,5 +1,6 @@
 from app.application.auth.service import AuthApplicationService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
+from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
 from app.application.books.service import BookService
 from app.application.recap.service import RecapService, WindowResolverService
 from app.domain.auth.models import AuthIdentity, User
@@ -145,7 +146,7 @@ class CacheStub:
         self.set_calls.append((cache_key, summary, ttl_seconds))
 
     def invalidate_book(self, book_id: str) -> None:
-        pass
+        self.invalidated = book_id
 
 
 class LLMStub:
@@ -178,6 +179,18 @@ class QueueStub:
     def enqueue(self, book_id: str, user_id: str, storage_path: str):
         self.calls.append((book_id, user_id, storage_path))
         return "task-123"
+
+
+class MetadataExtractorStub:
+    def extract(self, file_bytes: bytes, filename: str | None = None):
+        class Result:
+            title = "Extracted Title"
+            author = "Extracted Author"
+            cover_bytes = b"cover"
+            cover_content_type = "image/jpeg"
+            cover_extension = ".jpg"
+
+        return Result()
 
 
 def test_auth_application_service_returns_user_dto():
@@ -268,3 +281,34 @@ def test_ingestion_workflow_enqueues_background_job_and_updates_status():
     assert result.status == "processing"
     assert result.task_id == "task-123"
     assert queue.calls == [(created.id, "u1", created.storage_path)]
+
+
+def test_book_lifecycle_workflow_uploads_book_and_cover():
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks = ChunkRepoStub()
+    positions = PositionRepoStub()
+    book_service = BookService(books, storage, chunks, positions)
+    cache = CacheStub()
+    workflow = BookLifecycleWorkflow(book_service, MetadataExtractorStub(), cache)
+
+    result = workflow.upload_book("u1", b"epub", "sample.epub", "application/epub+zip")
+
+    assert result.status == "ready"
+    assert len(storage.uploads) == 2
+
+
+def test_book_lifecycle_workflow_invalidates_cache_on_delete():
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks = ChunkRepoStub()
+    positions = PositionRepoStub()
+    book_service = BookService(books, storage, chunks, positions)
+    created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
+    cache = CacheStub()
+    workflow = BookLifecycleWorkflow(book_service, MetadataExtractorStub(), cache)
+
+    result = workflow.delete_book(created.id, "u1")
+
+    assert result is not None
+    assert cache.invalidated == created.id

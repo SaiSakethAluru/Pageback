@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 
 from app.domain.books.models import BookChunk
+from app.domain.books.parsing import ParserFactory
 from app.domain.books.repositories import BookRepository, BookStorage, ChunkRepository
 from app.domain.recap.models import LLMGateway
-from app.infrastructure.parsers import ParserFactory
 from app.utils import token_counter
 from config import Config
 

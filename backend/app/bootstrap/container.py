@@ -5,6 +5,7 @@ from functools import lru_cache
 
 from app.application.books.ingestion_service import BookIngestionService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
+from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
 from app.application.auth.service import AuthApplicationService
 from app.application.books.service import BookService
 from app.application.positions.service import ReadingPositionService
@@ -29,7 +30,7 @@ from app.infrastructure.tasks import CeleryBookIngestionQueue
 class ApplicationContainer:
     auth_service: AuthApplicationService
     book_service: BookService
-    book_metadata_extractor: EpubMetadataExtractor
+    book_lifecycle_workflow: BookLifecycleWorkflow
     ingestion_service: BookIngestionService
     ingestion_workflow: BookIngestionWorkflow
     position_service: ReadingPositionService
@@ -54,7 +55,11 @@ def get_container() -> ApplicationContainer:
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
         book_service=book_service,
-        book_metadata_extractor=EpubMetadataExtractor(),
+        book_lifecycle_workflow=BookLifecycleWorkflow(
+            book_service,
+            EpubMetadataExtractor(),
+            InMemoryRecapCache(),
+        ),
         ingestion_service=BookIngestionService(
             book_repository,
             book_storage,
