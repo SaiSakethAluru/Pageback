@@ -7,7 +7,8 @@ from pathlib import Path
 from app.domain.books.models import BookChunk
 from app.domain.books.repositories import BookRepository, BookStorage, ChunkRepository
 from app.domain.recap.models import LLMGateway
-from app.utils import parser_factory, token_counter
+from app.infrastructure.parsers import ParserFactory
+from app.utils import token_counter
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,13 @@ class BookIngestionService:
         storage: BookStorage,
         chunks: ChunkRepository,
         llm: LLMGateway,
+        parsers: ParserFactory,
     ) -> None:
         self._books = books
         self._storage = storage
         self._chunks = chunks
         self._llm = llm
+        self._parsers = parsers
 
     def ingest_book(self, book_id: str, user_id: str, storage_path: str) -> None:
         filepath = ""
@@ -32,7 +35,7 @@ class BookIngestionService:
             self._books.update_ingestion(book_id, self._ingestion(status="processing", step="queued", progress=0))
             filepath = self._download_file(storage_path)
             self._books.update_ingestion(book_id, self._ingestion(status="processing", step="downloaded", progress=10))
-            chapters = parser_factory.get_parser(filepath).extract()
+            chapters = self._parsers.get_parser(filepath).extract()
             self._books.update_ingestion(book_id, self._ingestion(status="processing", step="parsed", progress=20))
             chunks = self._chunk_text(book_id, chapters)
             self._books.update_ingestion(

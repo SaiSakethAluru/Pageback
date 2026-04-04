@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from functools import wraps
 
-from flask import jsonify, session
+from flask import session
+
+from app.application.errors import AuthenticationError
+from app.interfaces.http.errors import error_response
 
 AUTH_SESSION_KEY = "user_id"
 
@@ -28,7 +31,7 @@ def require_auth(view_func):
     def wrapped(*args, **kwargs):
         user_id = current_user_id()
         if not user_id:
-            return jsonify({"error": "Authentication required"}), 401
+            return error_response(AuthenticationError("Authentication required"))
         return view_func(*args, **kwargs)
 
     return wrapped

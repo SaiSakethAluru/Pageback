@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, redirect, request
 
+from app.application.errors import AuthenticationError
 from app.auth import current_user_id, login_user, logout_user
 from app.auth.providers import GoogleOAuthProvider
 from app.bootstrap import get_container
+from app.interfaces.http.errors import error_response
 from config import Config
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
@@ -44,12 +46,12 @@ def finish_google_auth():
 def get_current_user():
     user_id = current_user_id()
     if not user_id:
-        return jsonify({"error": "Authentication required"}), 401
+        return error_response(AuthenticationError("Authentication required"))
 
     user = get_container().auth_service.get_user(user_id)
     if not user:
         logout_user()
-        return jsonify({"error": "Authentication required"}), 401
+        return error_response(AuthenticationError("Authentication required"))
 
     return jsonify(
         {

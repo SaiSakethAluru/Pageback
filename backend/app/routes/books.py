@@ -2,66 +2,44 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from app.application.errors import InfrastructureError, NotFoundError
 from app.auth import current_user_id, require_auth
 from app.bootstrap import get_container
+from app.interfaces.http.errors import error_response
+from app.interfaces.http.mappers import parse_book_metadata_update, parse_upload_request
 from app.services import recap_cache
 from app.services.llm import provider_factory
 from app.tasks.ingestion_tasks import ingest_book_task
-from app.utils.epub_metadata import extract_epub_metadata
-from config import Config
 
 books_bp = Blueprint("books", __name__, url_prefix="/api/v1/books")
 
 logger = logging.getLogger(__name__)
-
-EPUB_MIME_TYPE = "application/epub+zip"
 
 
 @books_bp.post("/upload")
 @require_auth
 def upload_book():
     user_id = current_user_id()
-    file = request.files.get("file")
-
-    if file is None:
-        return jsonify({"error": "Missing required form field: file"}), 400
-
-    if file.mimetype != EPUB_MIME_TYPE:
-        return (
-            jsonify(
-                {
-                    "error": (
-                        f"Invalid MIME type '{file.mimetype}'. "
-                        f"Only '{EPUB_MIME_TYPE}' is supported."
-                    )
-                }
-            ),
-            400,
-        )
-
-    file.seek(0, 2)
-    file_size = file.tell()
-    file.seek(0)
-    if file_size > Config.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-        return jsonify({"error": f"File size exceeds {Config.MAX_UPLOAD_SIZE_MB}MB limit"}), 400
-
-    file_bytes = file.read()
-    extracted = extract_epub_metadata(file_bytes, file.filename)
+    upload_request = parse_upload_request(request.files.get("file"))
+    extracted = get_container().book_metadata_extractor.extract(
+        upload_request.file_bytes,
+        upload_request.filename,
+    )
     book_service = get_container().book_service
     book = book_service.create_book(
         user_id=user_id,
-        file_bytes=file_bytes,
-        content_type=EPUB_MIME_TYPE,
-        title=extracted["title"],
-        author=extracted["author"],
+        file_bytes=upload_request.file_bytes,
+        content_type=upload_request.content_type,
+        title=extracted.title,
+        author=extracted.author,
     )
 
     cover_path = _store_cover(
         user_id=user_id,
         book_id=book.id,
-        cover_bytes=extracted["cover_bytes"],
-        content_type=extracted["cover_content_type"],
-        extension=extracted["cover_extension"],
+        cover_bytes=extracted.cover_bytes,
+        content_type=extracted.cover_content_type,
+        extension=extracted.cover_extension,
     )
     if cover_path:
         book_service.update_cover_path(book.id, cover_path)
@@ -75,7 +53,7 @@ def get_book_status(book_id: str):
     user_id = current_user_id()
     book = get_container().book_service.get_book(book_id, user_id)
     if not book:
-        return jsonify({"error": "Book not found"}), 404
+        return error_response(NotFoundError("Book not found"))
 
     provider = provider_factory.get_provider()
     return jsonify(
@@ -103,7 +81,7 @@ def start_ingestion(book_id: str):
 
     book = get_container().book_service.get_book(book_id, user_id)
     if not book:
-        return jsonify({"error": "Book not found"}), 404
+        return error_response(NotFoundError("Book not found"))
     get_container().book_service.update_ingestion_status(
         book_id,
         status="processing",
@@ -141,13 +119,16 @@ def list_books():
 @require_auth
 def update_book_metadata(book_id: str):
     user_id = current_user_id()
-    payload = request.get_json(silent=True) or {}
-    title = _normalize_metadata_text(payload.get("title"))
-    author = _normalize_metadata_text(payload.get("author"))
+    metadata_request = parse_book_metadata_update(request.get_json(silent=True) or {})
 
-    updated = get_container().book_service.update_metadata(book_id, user_id, title, author)
+    updated = get_container().book_service.update_metadata(
+        book_id,
+        user_id,
+        metadata_request.title,
+        metadata_request.author,
+    )
     if not updated:
-        return jsonify({"error": "Book not found"}), 404
+        return error_response(NotFoundError("Book not found"))
 
     return jsonify(
         {
@@ -164,14 +145,14 @@ def delete_book(book_id: str):
     user_id = current_user_id()
     book = get_container().book_service.get_book(book_id, user_id)
     if not book:
-        return jsonify({"error": "Book not found"}), 404
+        return error_response(NotFoundError("Book not found"))
 
     try:
         get_container().book_service.delete_book(book_id, user_id)
         recap_cache.invalidate_book(book_id)
     except Exception as exc:
         logger.exception("Failed to delete book_id=%s user_id=%s", book_id, user_id)
-        return jsonify({"error": f"Could not delete book: {exc}"}), 500
+        return error_response(InfrastructureError(f"Could not delete book: {exc}"))
 
     return jsonify({"book_id": book_id, "deleted": True})
 
@@ -182,15 +163,8 @@ def get_book_file_url(book_id: str):
     user_id = current_user_id()
     signed_url = get_container().book_service.create_signed_book_url(book_id, user_id)
     if not signed_url:
-        return jsonify({"error": "Book not found"}), 404
+        return error_response(NotFoundError("Book not found"))
     return jsonify({"signed_url": signed_url})
-
-
-def _normalize_metadata_text(value: object) -> str | None:
-    if value is None:
-        return None
-    normalized = str(value).strip()
-    return normalized or None
 
 
 def _store_cover(
