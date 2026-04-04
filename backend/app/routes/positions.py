@@ -1,16 +1,9 @@
 from flask import Blueprint, jsonify, request
-from supabase import Client, create_client
 
 from app.auth import current_user_id, require_auth
-from config import Config
+from app.bootstrap import get_container
 
 positions_bp = Blueprint("positions", __name__, url_prefix="/api/v1/positions")
-
-POSITIONS_TABLE = "reading_positions"
-
-
-def _supabase() -> Client:
-    return create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_KEY)
 
 
 @positions_bp.put("/<book_id>")
@@ -31,47 +24,10 @@ def upsert_position(book_id: str):
     except (TypeError, ValueError):
         return jsonify({"error": "position_char must be an integer"}), 400
 
-    sb = _supabase()
-    payload = {
-        "user_id": user_id,
-        "book_id": book_id,
-        "position_cfi": position_cfi,
-        "position_char": position_char,
-    }
-
     try:
-        sb.table(POSITIONS_TABLE).upsert(
-            payload,
-            on_conflict="user_id,book_id",
-        ).execute()
-    except Exception:
-        try:
-            existing = (
-                sb.table(POSITIONS_TABLE)
-                .select("user_id, book_id")
-                .eq("user_id", user_id)
-                .eq("book_id", book_id)
-                .limit(1)
-                .execute()
-            )
-            rows = existing.data or []
-            if rows:
-                (
-                    sb.table(POSITIONS_TABLE)
-                    .update(
-                        {
-                            "position_cfi": position_cfi,
-                            "position_char": position_char,
-                        }
-                    )
-                    .eq("user_id", user_id)
-                    .eq("book_id", book_id)
-                    .execute()
-                )
-            else:
-                sb.table(POSITIONS_TABLE).insert(payload).execute()
-        except Exception as exc:
-            return jsonify({"error": f"Could not save reading position: {exc}"}), 500
+        get_container().position_service.save(user_id, book_id, position_cfi, position_char)
+    except Exception as exc:
+        return jsonify({"error": f"Could not save reading position: {exc}"}), 500
 
     return jsonify({"success": True})
 
@@ -80,27 +36,16 @@ def upsert_position(book_id: str):
 @require_auth
 def get_position(book_id: str):
     user_id = current_user_id()
-    sb = _supabase()
-    response = (
-        sb.table(POSITIONS_TABLE)
-        .select("user_id, book_id, position_cfi, position_char, updated_at")
-        .eq("user_id", user_id)
-        .eq("book_id", book_id)
-        .limit(1)
-        .execute()
-    )
-
-    rows = response.data or []
-    if not rows:
+    position = get_container().position_service.get(user_id, book_id)
+    if not position:
         return jsonify({"position_cfi": None, "position_char": 0})
 
-    row = rows[0]
     return jsonify(
         {
-            "book_id": row.get("book_id"),
-            "user_id": row.get("user_id"),
-            "position_cfi": row.get("position_cfi"),
-            "position_char": row.get("position_char"),
-            "updated_at": row.get("updated_at"),
+            "book_id": position.book_id,
+            "user_id": position.user_id,
+            "position_cfi": position.position_cfi,
+            "position_char": position.position_char,
+            "updated_at": position.updated_at,
         }
     )
