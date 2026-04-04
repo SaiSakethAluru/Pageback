@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from flask import Blueprint, jsonify, request
 
 from app.application.errors import InfrastructureError
@@ -33,4 +35,6 @@ def upsert_position(book_id: str):
 def get_position(book_id: str):
     user_id = current_user_id()
     position = get_container().position_service.get(user_id, book_id)
-    return jsonify(serialize_position(position))
+    if not position:
+        return jsonify(serialize_position(position))
+    return jsonify(asdict(position))

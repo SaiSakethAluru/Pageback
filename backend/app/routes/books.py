@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import logging
 
 from flask import Blueprint, jsonify, request
@@ -51,18 +53,18 @@ def upload_book():
 @require_auth
 def get_book_status(book_id: str):
     user_id = current_user_id()
-    book = get_container().book_service.get_book(book_id, user_id)
-    if not book:
+    status = get_container().book_service.get_book_status(book_id, user_id)
+    if not status:
         return error_response(NotFoundError("Book not found"))
 
     provider = provider_factory.get_provider()
     return jsonify(
         {
             "book_id": book_id,
-            "status": book.ingestion.status,
-            "progress": book.ingestion.progress,
-            "step": book.ingestion.step,
-            "error": book.ingestion.error,
+            "status": status.status,
+            "progress": status.progress,
+            "step": status.step,
+            "error": status.error,
             "llm": {
                 "provider": provider.provider_name,
                 "recap_model": provider.recap_model,
@@ -106,9 +108,11 @@ def list_books():
     user_id = current_user_id()
     book_service = get_container().book_service
     books = [
-        book_service.serialize(
-            book,
-            cover_url=book_service.create_signed_cover_url(book.cover_path),
+        asdict(
+            book_service.to_book_dto(
+                book,
+                cover_url=book_service.create_signed_cover_url(book.cover_path),
+            )
         )
         for book in book_service.list_books(user_id)
     ]
@@ -133,8 +137,8 @@ def update_book_metadata(book_id: str):
     return jsonify(
         {
             "book_id": book_id,
-            "title": updated.metadata.title,
-            "author": updated.metadata.author,
+            "title": updated.title,
+            "author": updated.author,
         }
     )
 

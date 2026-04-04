@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class BookDTO:
+    id: str
+    title: str | None
+    author: str | None
+    cover_path: str | None
+    cover_url: str | None
+    ingestion_status: str
+    ingestion_progress: int | None
+    ingestion_step: str | None
+    ingestion_error: str | None
+    created_at: str | None
+
+
+@dataclass(frozen=True)
+class BookFileDTO:
+    id: str
+    user_id: str
+    storage_path: str
+    title: str | None
+    author: str | None
+    cover_path: str | None
+    ingestion_status: str
+    ingestion_progress: int | None
+    ingestion_step: str | None
+    ingestion_error: str | None
+    created_at: str | None
+
+
+@dataclass(frozen=True)
+class BookStatusDTO:
+    id: str
+    status: str
+    progress: int | None
+    step: str | None
+    error: str | None

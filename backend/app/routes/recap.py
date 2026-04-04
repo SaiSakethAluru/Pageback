@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from flask import Blueprint, jsonify, request
 
 from app.auth import current_user_id, require_auth
@@ -19,7 +21,7 @@ def generate_recap():
         recap_request.position_char,
         recap_request.level,
     )
-    return jsonify(result)
+    return jsonify(asdict(result))
 
 
 @recap_bp.get("/levels")

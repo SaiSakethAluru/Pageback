@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.application.recap.dto import RecapResultDTO
 from app.domain.books.models import BookChunk
 from app.domain.books.repositories import ChunkRepository
 from app.domain.recap.models import LLMGateway, RecapCache, UsageLogRepository
@@ -67,11 +68,11 @@ class RecapService:
         self._llm = llm
         self._usage_logs = usage_logs
 
-    def generate(self, user_id: str, book_id: str, position_char: int, level: int) -> dict:
+    def generate(self, user_id: str, book_id: str, position_char: int, level: int) -> RecapResultDTO:
         cache_key = self._cache.make_key(book_id, position_char, level)
         cached = self._cache.get(cache_key)
         if cached:
-            return {"summary": cached, "level": level, "cached": True}
+            return RecapResultDTO(summary=cached, level=level, cached=True)
 
         text_window = self._window_resolver.resolve(book_id, position_char, level)
         summary = self._llm.recap(text_window, level)
@@ -88,7 +89,7 @@ class RecapService:
             cost_usd=_estimated_cost_usd(input_tokens, output_tokens, self._llm.recap_model),
         )
 
-        return {"summary": summary, "level": level, "cached": False}
+        return RecapResultDTO(summary=summary, level=level, cached=False)
 
 
 def _estimated_cost_usd(input_tokens: int, output_tokens: int, model: str) -> float:
