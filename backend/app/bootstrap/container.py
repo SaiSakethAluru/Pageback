@@ -51,6 +51,13 @@ def get_container() -> ApplicationContainer:
     parser_factory = get_parser_factory()
     ingestion_queue = CeleryBookIngestionQueue()
     book_service = BookService(book_repository, book_storage, chunk_repository, position_repository)
+    ingestion_service = BookIngestionService(
+        book_repository,
+        book_storage,
+        chunk_repository,
+        llm_gateway,
+        parser_factory,
+    )
     window_resolver = WindowResolverService(chunk_repository, llm_gateway)
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
@@ -60,16 +67,11 @@ def get_container() -> ApplicationContainer:
             EpubMetadataExtractor(),
             InMemoryRecapCache(),
         ),
-        ingestion_service=BookIngestionService(
-            book_repository,
-            book_storage,
-            chunk_repository,
-            llm_gateway,
-            parser_factory,
-        ),
+        ingestion_service=ingestion_service,
         ingestion_workflow=BookIngestionWorkflow(
             book_service,
             ingestion_queue,
+            ingestion_service,
         ),
         position_service=ReadingPositionService(position_repository),
         recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),

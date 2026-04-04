@@ -64,13 +64,6 @@ def start_ingestion(book_id: str):
     book, result = get_container().ingestion_workflow.start(book_id, user_id, background)
     if not book:
         return error_response(NotFoundError("Book not found"))
-
-    if not background:
-        from app.services.ingestion import ingest_book
-
-        ingest_book(book_id=book_id, user_id=user_id, storage_path=book.storage_path)
-        return jsonify({"book_id": book_id, "status": result.status})
-
     return jsonify({"book_id": book_id, "status": result.status, "celery_task_id": result.task_id})
 
 
