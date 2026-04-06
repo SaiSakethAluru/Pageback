@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 BACKEND_ENV_FILE="$BACKEND_DIR/.env"
 VENV_PYTHON="$BACKEND_DIR/.venv/bin/python"
+LOG_DIR="$ROOT_DIR/.logs"
+CELERY_LOG_FILE="$LOG_DIR/celery-worker.log"
 
 if [[ ! -f "$BACKEND_ENV_FILE" ]]; then
   printf 'Missing %s. Run ./scripts/setup_local.sh first.\n' "$BACKEND_ENV_FILE" >&2
@@ -19,6 +21,7 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
 fi
 
 cd "$BACKEND_DIR"
+mkdir -p "$LOG_DIR"
 
 # Let python-dotenv load backend/.env from the backend directory.
 # Sourcing the file in bash is fragile because secrets may contain shell
@@ -62,7 +65,8 @@ START_CELERY_WORKER="${START_CELERY_WORKER:-true}"
 if [[ "$START_CELERY_WORKER" == "true" ]]; then
   # Avoid spawning duplicate workers for the same app.
   if ! pgrep -f "celery -A app.celery_app worker" >/dev/null 2>&1; then
-    "$ROOT_DIR/scripts/start_celery_worker.sh" >/dev/null 2>&1 &
+    "$ROOT_DIR/scripts/start_celery_worker.sh" >>"$CELERY_LOG_FILE" 2>&1 &
+    printf 'Celery worker logs: %s\n' "$CELERY_LOG_FILE"
   fi
 fi
 

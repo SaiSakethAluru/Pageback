@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import * as api from "../../services/api";
 import BookCard from "./BookCard";
+import DeleteBookModal from "./DeleteBookModal";
 import MetadataEditorModal from "./MetadataEditorModal";
 import UploadButton from "./UploadButton";
 
@@ -10,6 +11,7 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [editingBook, setEditingBook] = useState(null);
+  const [deletingBook, setDeletingBook] = useState(null);
 
   async function loadBooks() {
     setLoading(true);
@@ -68,11 +70,20 @@ export default function LibraryPage() {
           <BookCard
             key={book.id}
             book={book}
-            onDelete={() => setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== book.id))}
+            onDelete={setDeletingBook}
             onEditMetadata={setEditingBook}
           />
         ))}
       </div>
+
+      <DeleteBookModal
+        book={deletingBook}
+        isOpen={Boolean(deletingBook)}
+        onClose={() => setDeletingBook(null)}
+        onDeleted={(deletedBookId) =>
+          setBooks((currentBooks) => currentBooks.filter((entry) => entry.id !== deletedBookId))
+        }
+      />
 
       <MetadataEditorModal
         book={editingBook}

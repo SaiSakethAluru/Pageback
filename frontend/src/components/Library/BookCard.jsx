@@ -9,9 +9,8 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
   const menuRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isStartingAI, setIsStartingAI] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!menuOpen) {
@@ -38,35 +37,19 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
     };
   }, [menuOpen]);
 
-  async function handleDelete() {
-    const shouldDelete = window.confirm(
-      `Delete "${book.title || "Untitled book"}"? This removes the upload, AI data, and saved reading position.`
-    );
-    if (!shouldDelete) {
-      return;
-    }
-
-    setDeleteError("");
+  function handleDeleteClick() {
     setMenuOpen(false);
-    setIsDeleting(true);
-    try {
-      await api.deleteBook(book.id);
-      onDelete?.();
-    } catch (error) {
-      setDeleteError(error.message);
-    } finally {
-      setIsDeleting(false);
-    }
+    onDelete?.(book);
   }
 
   async function handleEnableAI() {
-    setDeleteError("");
+    setActionError("");
     setMenuOpen(false);
     setIsStartingAI(true);
     try {
       await api.startIngestion(book.id, { background: true });
     } catch (error) {
-      setDeleteError(error.message);
+      setActionError(error.message);
     } finally {
       setIsStartingAI(false);
     }
@@ -146,8 +129,8 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
                       {isStartingAI ? "Starting AI..." : "Enable AI indexing"}
                     </button>
                   ) : null}
-                  <button type="button" disabled={isDeleting} style={dangerMenuItemStyle} onClick={handleDelete}>
-                    {isDeleting ? "Deleting..." : "Delete book"}
+                  <button type="button" style={dangerMenuItemStyle} onClick={handleDeleteClick}>
+                    Delete book
                   </button>
                 </div>
               ) : null}
@@ -163,7 +146,7 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
           </div>
         </div>
       </div>
-      {deleteError ? <p style={errorStyle}>{deleteError}</p> : null}
+      {actionError ? <p style={errorStyle}>{actionError}</p> : null}
     </article>
   );
 }

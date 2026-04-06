@@ -430,7 +430,7 @@ fi
 openai_api_key=""
 gemini_api_key=""
 gemini_recap_model="gemini-1.5-flash"
-gemini_embedding_model="embedding-001"
+gemini_embedding_model="gemini-embedding-001"
 
 if [[ "$llm_provider" == "openai" ]]; then
   openai_api_key="$(prompt_value_with_existing "OpenAI API key" "$BACKEND_ENV_FILE" "OPENAI_API_KEY" "" true)"
@@ -439,7 +439,7 @@ fi
 if [[ "$llm_provider" == "gemini" ]]; then
   gemini_api_key="$(prompt_value_with_existing "Gemini API key" "$BACKEND_ENV_FILE" "GEMINI_API_KEY" "" true)"
   gemini_recap_model="$(prompt_optional_value_with_existing "Gemini recap model" "$BACKEND_ENV_FILE" "GEMINI_RECAP_MODEL" "gemini-1.5-flash")"
-  gemini_embedding_model="$(prompt_optional_value_with_existing "Gemini embedding model" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_MODEL" "embedding-001")"
+  gemini_embedding_model="$(prompt_optional_value_with_existing "Gemini embedding model" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_MODEL" "gemini-embedding-001")"
 fi
 
 redis_url="$(prompt_optional_value_with_existing "Redis URL" "$BACKEND_ENV_FILE" "REDIS_URL" "redis://localhost:6379/0")"
