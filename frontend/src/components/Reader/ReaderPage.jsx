@@ -322,9 +322,6 @@ export default function ReaderPage() {
         {isReaderLoading ? (
           <div style={loadingOverlayStyle}>
             <p style={loadingTitleStyle}>Opening book...</p>
-            <p style={loadingTextStyle}>
-              Fetching the file first, then page metadata will fill in as the reader settles.
-            </p>
           </div>
         ) : null}
 
