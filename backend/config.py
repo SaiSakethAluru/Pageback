@@ -6,6 +6,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _gemini_embedding_model() -> str:
+    configured = os.getenv("GEMINI_EMBEDDING_MODEL")
+    if configured == "embedding-001":
+        return "gemini-embedding-001"
+    return configured or "gemini-embedding-001"
+
+
 class Config:
     BACKEND_PORT = int(os.getenv("BACKEND_PORT", "5050"))
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -21,7 +28,7 @@ class Config:
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     GEMINI_RECAP_MODEL = os.getenv("GEMINI_RECAP_MODEL", "gemini-1.5-flash")
-    GEMINI_EMBEDDING_MODEL = os.getenv("GEMINI_EMBEDDING_MODEL", "embedding-001")
+    GEMINI_EMBEDDING_MODEL = _gemini_embedding_model()
 
     FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "pageback_session")

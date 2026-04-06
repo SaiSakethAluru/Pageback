@@ -7,9 +7,9 @@ from app.services.ingestion import ingest_book
 
 
 @pytest.mark.integration
-def test_recap_endpoint_uses_cache(test_client, supabase_client, cleanup_book):
+def test_recap_endpoint_uses_cache(authenticated_test_client, supabase_client, cleanup_book, test_user_id):
     fixture = Path(__file__).resolve().parents[1] / "fixtures" / "sample.epub"
-    user_id = "00000000-0000-0000-0000-000000000000"
+    user_id = test_user_id
     book_id = str(uuid4())
     storage_path = f"{user_id}/{book_id}/original.epub"
 
@@ -25,15 +25,15 @@ def test_recap_endpoint_uses_cache(test_client, supabase_client, cleanup_book):
 
     ingest_book(book_id, user_id, storage_path)
 
-    first = test_client.post(
+    first = authenticated_test_client.post(
         "/api/v1/recap/",
         json={"book_id": book_id, "user_id": user_id, "position_char": 1000, "level": 1},
     ).get_json()
-    second = test_client.post(
+    second = authenticated_test_client.post(
         "/api/v1/recap/",
         json={"book_id": book_id, "user_id": user_id, "position_char": 1000, "level": 1},
     ).get_json()
-    level_two = test_client.post(
+    level_two = authenticated_test_client.post(
         "/api/v1/recap/",
         json={"book_id": book_id, "user_id": user_id, "position_char": 1000, "level": 2},
     ).get_json()

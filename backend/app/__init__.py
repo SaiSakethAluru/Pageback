@@ -1,6 +1,8 @@
 from flask import Flask
 from flask_cors import CORS
 
+from app.application.errors import ApplicationError
+from app.interfaces.http.errors import error_response
 from app.routes.auth import auth_bp
 from app.routes.books import books_bp
 from app.routes.positions import positions_bp
@@ -29,5 +31,9 @@ def create_app() -> Flask:
     app.register_blueprint(books_bp)
     app.register_blueprint(positions_bp)
     app.register_blueprint(recap_bp)
+
+    @app.errorhandler(ApplicationError)
+    def handle_application_error(error: ApplicationError):
+        return error_response(error)
 
     return app

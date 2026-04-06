@@ -1,17 +1,3 @@
-from __future__ import annotations
+from app.domain.auth.providers import OAuthProvider
 
-from abc import ABC, abstractmethod
-
-from app.auth.models import AuthIdentity
-
-
-class OAuthProvider(ABC):
-    name: str
-
-    @abstractmethod
-    def begin_auth(self) -> str:
-        pass
-
-    @abstractmethod
-    def authenticate_callback(self, request_args) -> AuthIdentity:
-        pass
+__all__ = ["OAuthProvider"]
