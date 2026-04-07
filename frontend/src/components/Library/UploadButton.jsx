@@ -2,10 +2,22 @@ import { useRef, useState } from "react";
 
 import * as api from "../../services/api";
 
-export default function UploadButton({ onUploadComplete }) {
+export default function UploadButton({
+  onUploadComplete,
+  children,
+  renderTrigger,
+  buttonStyle: buttonStyleOverride,
+  containerStyle: containerStyleOverride,
+  errorStyle: errorStyleOverride,
+  ariaLabel = "Upload book",
+}) {
   const inputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
+
+  function openFilePicker() {
+    inputRef.current?.click();
+  }
 
   async function handleChange(event) {
     const file = event.target.files?.[0];
@@ -17,8 +29,7 @@ export default function UploadButton({ onUploadComplete }) {
     setIsUploading(true);
 
     try {
-      const upload = await api.uploadBook(file);
-
+      await api.uploadBook(file);
       await onUploadComplete?.();
     } catch (uploadError) {
       setError(uploadError.message);
@@ -29,7 +40,7 @@ export default function UploadButton({ onUploadComplete }) {
   }
 
   return (
-    <div style={containerStyle}>
+    <div style={{ ...containerStyle, ...containerStyleOverride }}>
       <input
         ref={inputRef}
         type="file"
@@ -37,10 +48,19 @@ export default function UploadButton({ onUploadComplete }) {
         hidden
         onChange={handleChange}
       />
-      <button type="button" onClick={() => inputRef.current?.click()} style={buttonStyle}>
-        {isUploading ? "Uploading..." : "Upload Book"}
-      </button>
-      <p style={error ? errorStyle : errorPlaceholderStyle}>{error || "\u00A0"}</p>
+      {renderTrigger ? (
+        renderTrigger({ openFilePicker, isUploading, error })
+      ) : (
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          onClick={openFilePicker}
+          style={{ ...buttonStyle, ...buttonStyleOverride }}
+        >
+          {children || (isUploading ? "Uploading..." : "Upload Book")}
+        </button>
+      )}
+      {error ? <p style={{ ...errorStyle, ...errorStyleOverride }}>{error}</p> : null}
     </div>
   );
   // TODO: add .pdf to accept attribute once PDF support is implemented
@@ -59,16 +79,11 @@ const buttonStyle = {
   background: "#17313e",
   color: "#fff",
   fontWeight: 600,
+  cursor: "pointer",
 };
 
 const errorStyle = {
   color: "#a11d1d",
   margin: "0.5rem 0 0",
   maxWidth: 320,
-};
-
-// Keeps header actions aligned even when there's no error.
-const errorPlaceholderStyle = {
-  ...errorStyle,
-  color: "transparent",
 };

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PageBack book icon">
+  <rect width="64" height="64" rx="18" fill="#17313e"/>
+  <path d="M18 16.5c0-2.2 1.8-4 4-4h27v36H22c-2.2 0-4 1.8-4 4v-36Z" fill="#f7efe2"/>
+  <path d="M18 16.5c0-2.2 1.8-4 4-4h3v36h-3c-2.2 0-4 1.8-4 4v-36Z" fill="#d9b77f"/>
+  <path d="M25 48.5h24v3H22c-1.7 0-3 1.3-3 3h30v-6Z" fill="#f7efe2"/>
+  <path d="M31 23h11M31 30h11M31 37h8" stroke="#17313e" stroke-width="3" stroke-linecap="round"/>
+</svg>

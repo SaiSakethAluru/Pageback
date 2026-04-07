@@ -4,6 +4,7 @@ import AuthGuard from "./components/Auth/AuthGuard";
 import LoginPage from "./components/Auth/LoginPage";
 import LibraryPage from "./components/Library/LibraryPage";
 import ReaderPage from "./components/Reader/ReaderPage";
+import SettingsPage from "./components/Settings/SettingsPage";
 
 export default function App() {
   return (
@@ -24,6 +25,14 @@ export default function App() {
           element={
             <AuthGuard>
               <ReaderPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <AuthGuard>
+              <SettingsPage />
             </AuthGuard>
           }
         />
