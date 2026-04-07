@@ -1,4 +1,0 @@
-[2026-04-06 21:42:04,281: INFO/MainProcess] Connected to redis://localhost:6379/0
-[2026-04-06 21:42:04,287: INFO/MainProcess] mingle: searching for neighbors
-[2026-04-06 21:42:05,303: INFO/MainProcess] mingle: all alone
-[2026-04-06 21:42:05,385: INFO/MainProcess] celery@Sakeths-MacBook-Air.local ready.
