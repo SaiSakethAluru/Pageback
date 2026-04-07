@@ -47,7 +47,7 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
     setMenuOpen(false);
     setIsStartingAI(true);
     try {
-      await api.startIngestion(book.id, { background: true });
+      await api.startIngestion(book.id);
     } catch (error) {
       setActionError(error.message);
     } finally {

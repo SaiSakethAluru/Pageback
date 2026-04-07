@@ -181,14 +181,6 @@ class QueueStub:
         return "task-123"
 
 
-class IngesterStub:
-    def __init__(self):
-        self.calls = []
-
-    def ingest_book(self, book_id: str, user_id: str, storage_path: str):
-        self.calls.append((book_id, user_id, storage_path))
-
-
 class MetadataExtractorStub:
     def extract(self, file_bytes: bytes, filename: str | None = None):
         class Result:
@@ -281,36 +273,14 @@ def test_ingestion_workflow_enqueues_background_job_and_updates_status():
     book_service = BookService(books, storage, chunks, positions)
     created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
     queue = QueueStub()
-    ingester = IngesterStub()
-    workflow = BookIngestionWorkflow(book_service, queue, ingester)
+    workflow = BookIngestionWorkflow(book_service, queue)
 
-    book, result = workflow.start(created.id, "u1", background=True)
+    book, result = workflow.start(created.id, "u1")
 
     assert book is not None
     assert result.status == "processing"
     assert result.task_id == "task-123"
     assert queue.calls == [(created.id, "u1", created.storage_path)]
-    assert ingester.calls == []
-
-
-def test_ingestion_workflow_runs_foreground_ingestion_inline():
-    books = BookRepoStub()
-    storage = StorageStub()
-    chunks = ChunkRepoStub()
-    positions = PositionRepoStub()
-    book_service = BookService(books, storage, chunks, positions)
-    created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
-    queue = QueueStub()
-    ingester = IngesterStub()
-    workflow = BookIngestionWorkflow(book_service, queue, ingester)
-
-    book, result = workflow.start(created.id, "u1", background=False)
-
-    assert book is not None
-    assert result.status == "complete"
-    assert result.task_id is None
-    assert ingester.calls == [(created.id, "u1", created.storage_path)]
-    assert queue.calls == []
 
 
 def test_book_lifecycle_workflow_uploads_book_and_cover():

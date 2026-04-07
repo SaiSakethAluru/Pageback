@@ -39,7 +39,7 @@ Additional app-specific documentation lives here:
 1. A user signs in with Google through the backend auth flow.
 2. The frontend uploads an EPUB to the backend.
 3. The backend stores the original file in Supabase Storage.
-4. The user opts-in to AI ingestion (optionally in the background); ingestion parses the EPUB, chunks the text, embeds the chunks, and stores them in Supabase.
+4. The user opts-in to AI ingestion; ingestion runs in the background, parses the EPUB, chunks the text, embeds the chunks, and stores them in Supabase.
 5. While reading, the frontend saves the latest CFI and character offset.
 6. When the reader asks for a recap, the backend resolves a spoiler-safe text window and sends only that window to the LLM.
 
@@ -244,7 +244,7 @@ and the frontend origin:
 5. Sign in with Google.
 6. Upload a small EPUB.
 7. Open the book and move a few pages (basic reading works immediately).
-8. Enable AI processing (background recommended).
+8. Enable AI processing.
 9. Trigger recap levels once AI processing finishes.
 
 ### Manual end-to-end checklist

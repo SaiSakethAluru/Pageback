@@ -58,10 +58,8 @@ def get_book_status(book_id: str):
 @require_auth
 def start_ingestion(book_id: str):
     user_id = current_user_id()
-    payload = request.get_json(silent=True) or {}
-    background = bool(payload.get("background", True))
 
-    book, result = get_container().ingestion_workflow.start(book_id, user_id, background)
+    book, result = get_container().ingestion_workflow.start(book_id, user_id)
     if not book:
         return error_response(NotFoundError("Book not found"))
     return jsonify({"book_id": book_id, "status": result.status, "celery_task_id": result.task_id})

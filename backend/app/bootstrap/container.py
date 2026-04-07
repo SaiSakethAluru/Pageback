@@ -71,7 +71,6 @@ def get_container() -> ApplicationContainer:
         ingestion_workflow=BookIngestionWorkflow(
             book_service,
             ingestion_queue,
-            ingestion_service,
         ),
         position_service=ReadingPositionService(position_repository),
         recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),

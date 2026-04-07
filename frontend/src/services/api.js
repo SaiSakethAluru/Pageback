@@ -42,16 +42,14 @@ export async function getBookStatus(bookId) {
   });
 }
 
-export async function startIngestion(bookId, { background = true } = {}) {
+export async function startIngestion(bookId) {
   return request(`/api/v1/books/${bookId}/ingestion/start`, {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      background,
-    }),
+    body: JSON.stringify({}),
   });
 }
 

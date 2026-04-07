@@ -36,7 +36,7 @@ Uploads an EPUB, creates a `books` row, and marks it as `ready` (LLM processing 
 
 ### `POST /api/v1/books/<book_id>/ingestion/start`
 
-Starts the ingestion workflow (chunking + embeddings) either in the foreground or via Celery background execution.
+Starts the ingestion workflow (chunking + embeddings) via Celery background execution.
 
 ### `GET /api/v1/books/<book_id>/status`
 

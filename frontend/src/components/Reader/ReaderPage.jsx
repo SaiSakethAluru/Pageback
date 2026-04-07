@@ -43,7 +43,6 @@ export default function ReaderPage() {
   const [fontDialogOpen, setFontDialogOpen] = useState(false);
   const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
-  const [startInBackground, setStartInBackground] = useState(true);
   const [layoutMode, setLayoutMode] = useState("horizontal-spread");
   const [fontScale, setFontScale] = useState(100);
   const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value);
@@ -238,10 +237,10 @@ export default function ReaderPage() {
   const aiStatusLabel = getAIStatusLabel(ingestion.status);
   const aiStatusDescription = getAIStatusDescription(ingestion.status);
 
-  async function startAI(background) {
+  async function startAI() {
     setIsStartingAI(true);
     try {
-      await api.startIngestion(bookId, { background });
+      await api.startIngestion(bookId);
       const ingestionStatus = await api.getBookStatus(bookId);
       setIngestion({
         status: ingestionStatus.status || ingestionStatus.ingestion_status || "ready",
@@ -618,14 +617,6 @@ export default function ReaderPage() {
 
             {(ingestion.status === "ready" || ingestion.status === "error") && !isAIComplete ? (
               <>
-                <label style={toggleRowStyle}>
-                  <input
-                    type="checkbox"
-                    checked={startInBackground}
-                    onChange={(event) => setStartInBackground(event.target.checked)}
-                  />
-                  <span>Process in background</span>
-                </label>
                 <div style={dialogButtonsStyle}>
                   <button
                     type="button"
@@ -636,7 +627,7 @@ export default function ReaderPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => startAI(startInBackground).catch(() => {})}
+                    onClick={() => startAI().catch(() => {})}
                     disabled={isStartingAI}
                     style={primaryButtonStyle}
                   >
@@ -1073,15 +1064,6 @@ const fontButtonStyle = {
   padding: "0.75rem 0.85rem",
   background: "#fff",
   textAlign: "left",
-};
-
-const toggleRowStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  marginTop: "0.9rem",
-  color: "#3a2f24",
-  fontWeight: 600,
 };
 
 const dialogButtonsStyle = {
