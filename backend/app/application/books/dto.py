@@ -39,3 +39,7 @@ class BookStatusDTO:
     progress: int | None
     step: str | None
     error: str | None
+    error_type: str | None = None
+    request_id: str | None = None
+    log_path: str | None = None
+    model_config_id: str | None = None

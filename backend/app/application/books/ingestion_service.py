@@ -29,31 +29,51 @@ class BookIngestionService:
         self._llm = llm
         self._parsers = parsers
 
-    def ingest_book(self, book_id: str, user_id: str, storage_path: str) -> None:
+    def ingest_book(self, book_id: str, user_id: str, storage_path: str, request_id: str | None = None) -> None:
         filepath = ""
         try:
-            self._books.update_ingestion(book_id, self._ingestion(status="processing", step="queued", progress=0))
+            if request_id:
+                self._books.mark_ingestion_request_started(request_id)
+            self._update_ingestion(book_id, request_id, status="processing", step="queued", progress=0)
             filepath = self._download_file(storage_path)
-            self._books.update_ingestion(book_id, self._ingestion(status="processing", step="downloaded", progress=10))
+            self._update_ingestion(book_id, request_id, status="processing", step="downloaded", progress=10)
             chapters = self._parsers.get_parser(filepath).extract()
-            self._books.update_ingestion(book_id, self._ingestion(status="processing", step="parsed", progress=20))
+            self._update_ingestion(book_id, request_id, status="processing", step="parsed", progress=20)
             chunks = self._chunk_text(book_id, chapters)
-            self._books.update_ingestion(
+            self._update_ingestion(
                 book_id,
-                self._ingestion(status="processing", step=f"chunked ({len(chunks)} chunks)", progress=35),
+                request_id,
+                status="processing",
+                step=f"chunked ({len(chunks)} chunks)",
+                progress=35,
             )
-            embedded_chunks = self._embed_chunks(book_id, chunks)
+            embedded_chunks = self._embed_chunks(request_id, book_id, chunks)
             self._chunks.replace_for_book(book_id, embedded_chunks)
-            self._books.update_ingestion(book_id, self._ingestion(status="complete", step="done", progress=100))
+            self._update_ingestion(book_id, request_id, status="complete", step="done", progress=100)
+            if request_id:
+                self._books.mark_ingestion_request_finished(request_id, status="complete")
         except Exception as exc:
-            logger.exception("Failed ingestion pipeline for book_id=%s user_id=%s", book_id, user_id)
-            self._books.update_ingestion(
+            error_type = type(exc).__name__
+            error_message = _concise_error(exc)
+            logger.exception(
+                "Failed ingestion pipeline request_id=%s book_id=%s user_id=%s",
+                request_id,
                 book_id,
-                self._ingestion(status="failed", error="Ingestion failed. See server logs."),
+                user_id,
             )
-            message = str(exc)[:2000]
-            if message:
-                self._books.update_ingestion(book_id, self._ingestion(status="failed", error=message))
+            self._update_ingestion(
+                book_id,
+                request_id,
+                status="failed",
+                error=error_message,
+            )
+            if request_id:
+                self._books.mark_ingestion_request_finished(
+                    request_id,
+                    status="failed",
+                    error_type=error_type,
+                    error_message=error_message,
+                )
             raise
         finally:
             if filepath:
@@ -118,19 +138,11 @@ class BookIngestionService:
 
         return chunks
 
-    def _embed_chunks(self, book_id: str, chunks: list[BookChunk]) -> list[BookChunk]:
+    def _embed_chunks(self, request_id: str | None, book_id: str, chunks: list[BookChunk]) -> list[BookChunk]:
         embedded_chunks: list[BookChunk] = []
         total = len(chunks)
         for start in range(0, total, 100):
             batch = chunks[start : start + 100]
-            self._books.update_ingestion(
-                book_id,
-                self._ingestion(
-                    status="processing",
-                    step=f"embedding ({start}/{total})",
-                    progress=35 + int(60 * (min(start + len(batch), total) / max(total, 1))),
-                ),
-            )
             embeddings = self._llm.embed_batch([chunk.text for chunk in batch])
             for chunk, embedding in zip(batch, embeddings):
                 embedded_chunks.append(
@@ -145,7 +157,35 @@ class BookIngestionService:
                         embedding=embedding,
                     )
                 )
+            completed = min(start + len(batch), total)
+            self._update_ingestion(
+                book_id,
+                request_id,
+                status="processing",
+                step=f"embedding ({completed}/{total})",
+                progress=35 + int(60 * (completed / max(total, 1))),
+            )
         return embedded_chunks
+
+    def _update_ingestion(
+        self,
+        book_id: str,
+        request_id: str | None,
+        status: str,
+        step: str | None = None,
+        progress: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        ingestion = self._ingestion(
+            status=status,
+            step=step,
+            progress=progress,
+            error=error,
+            request_id=request_id,
+        )
+        self._books.update_ingestion(book_id, ingestion)
+        if request_id:
+            self._books.update_ingestion_request(request_id, ingestion)
 
     @staticmethod
     def _ingestion(
@@ -153,7 +193,15 @@ class BookIngestionService:
         step: str | None = None,
         progress: int | None = None,
         error: str | None = None,
+        request_id: str | None = None,
     ):
         from app.domain.books.models import IngestionInfo
 
-        return IngestionInfo(status=status, progress=progress, step=step, error=error)
+        return IngestionInfo(status=status, progress=progress, step=step, error=error, request_id=request_id)
+
+
+def _concise_error(exc: Exception) -> str:
+    message = str(exc).splitlines()[0] if str(exc) else ""
+    if message:
+        return f"{type(exc).__name__}: {message}"[:2000]
+    return type(exc).__name__

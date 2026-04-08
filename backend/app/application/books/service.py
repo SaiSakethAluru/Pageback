@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from app.application.books.dto import BookDTO, BookFileDTO, BookStatusDTO
-from app.domain.books.models import Book, BookMetadata, IngestionInfo
+from app.domain.books.models import Book, BookMetadata, IngestionInfo, IngestionRequest
 from app.domain.books.repositories import BookRepository, BookStorage, ChunkRepository
 from app.domain.positions.repositories import ReadingPositionRepository
 
@@ -70,6 +70,7 @@ class BookService:
         progress: int | None = None,
         step: str | None = None,
         error: str | None = None,
+        request_id: str | None = None,
     ) -> None:
         self._books.update_ingestion(
             book_id,
@@ -78,8 +79,32 @@ class BookService:
                 progress=progress,
                 step=step,
                 error=error,
+                request_id=request_id,
             ),
         )
+
+    def create_ingestion_request(self, request: IngestionRequest) -> None:
+        self._books.create_ingestion_request(request)
+
+    def update_ingestion_request_task_id(self, request_id: str, task_id: str | None) -> None:
+        self._books.update_ingestion_request_task_id(request_id, task_id)
+
+    def mark_ingestion_request_finished(
+        self,
+        request_id: str,
+        status: str,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        self._books.mark_ingestion_request_finished(
+            request_id,
+            status=status,
+            error_type=error_type,
+            error_message=error_message,
+        )
+
+    def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
+        return self._books.ensure_model_config(provider, recap_model, embedding_model)
 
     def create_signed_book_url(self, book_id: str, user_id: str, expires_in_seconds: int = 3600) -> str | None:
         book = self._books.get_by_id(book_id, user_id)
@@ -109,12 +134,17 @@ class BookService:
         book = self._books.get_by_id(book_id, user_id)
         if not book:
             return None
+        latest_request = self._books.get_latest_ingestion_request(book_id, user_id)
         return BookStatusDTO(
             id=book.id,
             status=book.ingestion.status,
             progress=book.ingestion.progress,
             step=book.ingestion.step,
             error=book.ingestion.error,
+            error_type=latest_request.error_type if latest_request else None,
+            request_id=book.ingestion.request_id or (latest_request.id if latest_request else None),
+            log_path=latest_request.log_path if latest_request else None,
+            model_config_id=latest_request.model_config_id if latest_request else None,
         )
 
     @staticmethod

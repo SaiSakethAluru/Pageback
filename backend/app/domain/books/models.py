@@ -15,6 +15,26 @@ class IngestionInfo:
     progress: int | None = None
     step: str | None = None
     error: str | None = None
+    request_id: str | None = None
+
+
+@dataclass(frozen=True)
+class IngestionRequest:
+    id: str
+    book_id: str
+    user_id: str
+    book_title: str | None
+    model_config_id: str | None
+    status: str
+    progress: int | None = None
+    step: str | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+    log_path: str | None = None
+    celery_task_id: str | None = None
+    created_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
 
 
 @dataclass(frozen=True)

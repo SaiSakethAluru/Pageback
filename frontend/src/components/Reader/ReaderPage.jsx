@@ -64,6 +64,8 @@ export default function ReaderPage() {
     progress: null,
     step: "",
     error: "",
+    requestId: "",
+    logPath: "",
     llm: null,
   });
 
@@ -84,6 +86,8 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
     }
@@ -109,6 +113,8 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
     }
@@ -253,6 +259,8 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
       setAIErrorExpanded(false);
@@ -657,7 +665,11 @@ export default function ReaderPage() {
             </div>
 
             {isAIFailed && ingestion.error && aiErrorExpanded ? (
-              <pre style={errorLogStyle}>{ingestion.error}</pre>
+              <div style={errorLogStyle}>
+                {ingestion.requestId ? <p style={errorMetaStyle}>Request ID: {ingestion.requestId}</p> : null}
+                {ingestion.logPath ? <p style={errorMetaStyle}>Log: {ingestion.logPath}</p> : null}
+                <pre style={errorMessageStyle}>{ingestion.error}</pre>
+              </div>
             ) : null}
 
             <div style={progressSectionStyle}>
@@ -1097,7 +1109,6 @@ const statusLinkStyle = {
 const errorLogStyle = {
   maxHeight: 150,
   overflow: "auto",
-  whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   margin: "0.65rem 0 0",
   padding: "0.75rem",
@@ -1106,6 +1117,18 @@ const errorLogStyle = {
   color: "#7a241c",
   fontSize: "0.82rem",
   lineHeight: 1.45,
+};
+
+const errorMetaStyle = {
+  margin: "0 0 0.35rem",
+  color: "#5f2923",
+  fontWeight: 800,
+};
+
+const errorMessageStyle = {
+  margin: "0.55rem 0 0",
+  whiteSpace: "pre-wrap",
+  font: "inherit",
 };
 
 const progressSectionStyle = {
