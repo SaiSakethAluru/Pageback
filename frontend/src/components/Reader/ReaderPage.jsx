@@ -39,6 +39,8 @@ export default function ReaderPage() {
   const [isReaderReady, setIsReaderReady] = useState(false);
   const [isStartingAI, setIsStartingAI] = useState(false);
   const [aiDialogOpen, setAIDialogOpen] = useState(false);
+  const [aiErrorExpanded, setAIErrorExpanded] = useState(false);
+  const [aiInfoVisible, setAIInfoVisible] = useState(false);
   const [recapDialogOpen, setRecapDialogOpen] = useState(false);
   const [fontDialogOpen, setFontDialogOpen] = useState(false);
   const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
@@ -62,6 +64,8 @@ export default function ReaderPage() {
     progress: null,
     step: "",
     error: "",
+    requestId: "",
+    logPath: "",
     llm: null,
   });
 
@@ -82,6 +86,8 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
     }
@@ -107,6 +113,8 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
     }
@@ -233,9 +241,13 @@ export default function ReaderPage() {
 
   const readerType = getReaderType("original.epub");
   const ReaderComponent = readerType === "pdf" ? PdfReader : EpubReader;
-  const isAIComplete = ingestion.status === "complete";
-  const aiStatusLabel = getAIStatusLabel(ingestion.status);
-  const aiStatusDescription = getAIStatusDescription(ingestion.status);
+  const aiStatus = normalizeAIStatus(ingestion.status);
+  const isAIComplete = aiStatus === "complete";
+  const isAIProcessing = aiStatus === "processing";
+  const isAIFailed = aiStatus === "failed";
+  const aiStatusLabel = getAIStatusLabel(aiStatus);
+  const aiProgress = typeof ingestion.progress === "number" ? Math.min(Math.max(ingestion.progress, 0), 100) : 0;
+  const aiActionLabel = getAIActionLabel(aiStatus, isStartingAI);
 
   async function startAI() {
     setIsStartingAI(true);
@@ -247,9 +259,11 @@ export default function ReaderPage() {
         progress: ingestionStatus.progress ?? null,
         step: ingestionStatus.step || "",
         error: ingestionStatus.error || "",
+        requestId: ingestionStatus.request_id || "",
+        logPath: ingestionStatus.log_path || "",
         llm: ingestionStatus.llm || null,
       });
-      setAIDialogOpen(false);
+      setAIErrorExpanded(false);
       revealHud();
     } finally {
       setIsStartingAI(false);
@@ -602,49 +616,91 @@ export default function ReaderPage() {
         {aiDialogOpen ? (
           <section style={{ ...popoverStyle, ...aiPopoverStyle }}>
             <div style={popoverHeaderStyle}>
-              <p style={popoverTitleStyle}>AI processing</p>
+              <div style={titleWithInfoStyle}>
+                <p style={popoverTitleStyle}>AI processing</p>
+                {ingestion.llm ? (
+                  <div
+                    style={infoWrapStyle}
+                    onMouseEnter={() => setAIInfoVisible(true)}
+                    onMouseLeave={() => setAIInfoVisible(false)}
+                    onFocus={() => setAIInfoVisible(true)}
+                    onBlur={() => setAIInfoVisible(false)}
+                  >
+                    <span style={infoIconStyle} aria-label="Model details" tabIndex={0}>
+                      i
+                    </span>
+                    <div
+                      style={{
+                        ...modelTooltipStyle,
+                        opacity: aiInfoVisible ? 1 : 0,
+                      }}
+                      role="tooltip"
+                    >
+                      <p style={modelTextStyle}>Provider: {ingestion.llm.provider}</p>
+                      <p style={modelTextStyle}>Recap: {ingestion.llm.recap_model}</p>
+                      <p style={modelTextStyle}>Embeddings: {ingestion.llm.embedding_model}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <button type="button" onClick={() => setAIDialogOpen(false)} style={closePopoverButtonStyle}>
                 <CloseIcon />
               </button>
             </div>
-            <p style={statusLineStyle}>
-              {aiStatusLabel}
-              {typeof ingestion.progress === "number" ? ` · ${ingestion.progress}%` : ""}
-            </p>
-            <p style={popoverBodyStyle}>{aiStatusDescription}</p>
-            {ingestion.step ? <p style={helperTextStyle}>{ingestion.step}</p> : null}
-            {ingestion.error ? <p style={errorTextStyle}>{ingestion.error}</p> : null}
 
-            {(ingestion.status === "ready" || ingestion.status === "error") && !isAIComplete ? (
-              <>
-                <div style={dialogButtonsStyle}>
-                  <button
-                    type="button"
-                    onClick={() => setAIDialogOpen(false)}
-                    style={ghostButtonStyle}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startAI().catch(() => {})}
-                    disabled={isStartingAI}
-                    style={primaryButtonStyle}
-                  >
-                    {isStartingAI ? "Starting..." : "Start processing"}
-                  </button>
-                </div>
-              </>
-            ) : null}
+            <div style={aiStatusRowStyle}>
+              <span style={statusLabelStyle}>Status</span>
+              {isAIFailed && ingestion.error ? (
+                <button
+                  type="button"
+                  onClick={() => setAIErrorExpanded((expanded) => !expanded)}
+                  style={statusLinkStyle}
+                  aria-expanded={aiErrorExpanded}
+                >
+                  {aiStatusLabel}
+                </button>
+              ) : (
+                <span style={statusValueStyle}>{aiStatusLabel}</span>
+              )}
+            </div>
 
-            {ingestion.llm ? (
-              <div style={modelDetailsStyle}>
-                <p style={modelLabelStyle}>Model details</p>
-                <p style={modelTextStyle}>Provider: {ingestion.llm.provider}</p>
-                <p style={modelTextStyle}>Recap: {ingestion.llm.recap_model}</p>
-                <p style={modelTextStyle}>Embeddings: {ingestion.llm.embedding_model}</p>
+            {isAIFailed && ingestion.error && aiErrorExpanded ? (
+              <div style={errorLogStyle}>
+                {ingestion.requestId ? <p style={errorMetaStyle}>Request ID: {ingestion.requestId}</p> : null}
+                {ingestion.logPath ? <p style={errorMetaStyle}>Log: {ingestion.logPath}</p> : null}
+                <pre style={errorMessageStyle}>{ingestion.error}</pre>
               </div>
             ) : null}
+
+            <div style={progressSectionStyle}>
+              <div style={progressHeaderStyle}>
+                <span style={statusLabelStyle}>Progress</span>
+                <span style={progressValueStyle}>{aiProgress}%</span>
+              </div>
+              <div style={progressTrackStyle}>
+                <div style={{ ...progressFillStyle, width: `${aiProgress}%` }} />
+              </div>
+              {ingestion.step ? <p style={helperTextStyle}>{ingestion.step}</p> : null}
+            </div>
+
+            <div style={dialogButtonsStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isAIProcessing) {
+                    return;
+                  }
+                  startAI().catch(() => {});
+                }}
+                disabled={isStartingAI || isAIProcessing}
+                style={{
+                  ...primaryButtonStyle,
+                  ...((isStartingAI || isAIProcessing) ? disabledPrimaryButtonStyle : null),
+                }}
+              >
+                {aiActionLabel}
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
@@ -661,30 +717,40 @@ export default function ReaderPage() {
   );
 }
 
+function normalizeAIStatus(status) {
+  if (status === "error" || status === "failed") {
+    return "failed";
+  }
+  return status || "ready";
+}
+
 function getAIStatusLabel(status) {
   if (status === "complete") {
-    return "Recaps ready";
+    return "Succeeded";
   }
   if (status === "processing") {
     return "Processing";
   }
-  if (status === "error") {
-    return "Needs attention";
+  if (status === "failed") {
+    return "Failed";
   }
   return "Not started";
 }
 
-function getAIStatusDescription(status) {
+function getAIActionLabel(status, isStarting) {
+  if (isStarting) {
+    return "Starting...";
+  }
   if (status === "complete") {
-    return "AI indexing is finished, so recap actions are available now.";
+    return "Retry";
   }
   if (status === "processing") {
-    return "The book is being indexed for spoiler-safe recap generation.";
+    return "Cancel";
   }
-  if (status === "error") {
-    return "The last processing run did not finish. You can try again from here.";
+  if (status === "failed") {
+    return "Retry";
   }
-  return "Ready means the book can be processed, but AI indexing has not been started yet.";
+  return "Start";
 }
 
 function ChevronLeftIcon() {
@@ -804,13 +870,6 @@ const loadingTitleStyle = {
   fontSize: "1.15rem",
   fontWeight: 800,
   color: "#2e241a",
-};
-
-const loadingTextStyle = {
-  margin: "0.6rem 0 0",
-  maxWidth: 420,
-  lineHeight: 1.6,
-  color: "#6d6153",
 };
 
 const edgeTurnZoneStyle = {
@@ -945,13 +1004,56 @@ const recapPopoverStyle = {
 
 const aiPopoverStyle = {
   right: 12,
-  width: 320,
+  width: 340,
 };
 
 const popoverTitleStyle = {
   margin: 0,
   fontSize: "0.96rem",
   fontWeight: 800,
+};
+
+const titleWithInfoStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
+};
+
+const infoWrapStyle = {
+  position: "relative",
+  display: "inline-flex",
+};
+
+const infoIconStyle = {
+  display: "grid",
+  placeItems: "center",
+  width: 18,
+  height: 18,
+  borderRadius: 999,
+  border: "1px solid rgba(67, 53, 39, 0.18)",
+  color: "#67584a",
+  fontSize: "0.72rem",
+  fontWeight: 900,
+  lineHeight: 1,
+  cursor: "help",
+};
+
+const modelTooltipStyle = {
+  position: "absolute",
+  left: "50%",
+  bottom: "calc(100% + 8px)",
+  transform: "translateX(-50%)",
+  width: 260,
+  padding: "0.72rem 0.8rem",
+  borderRadius: 14,
+  background: "#201a14",
+  color: "#fff9ef",
+  boxShadow: "0 14px 30px rgba(32, 24, 16, 0.25)",
+  opacity: 0,
+  pointerEvents: "none",
+  transition: "opacity 160ms ease",
+  zIndex: 3,
 };
 
 const popoverHeaderStyle = {
@@ -972,27 +1074,98 @@ const closePopoverButtonStyle = {
   color: "#31261d",
 };
 
-const popoverBodyStyle = {
-  margin: "0.5rem 0 0",
-  color: "#5d5145",
-  lineHeight: 1.5,
+const aiStatusRowStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  marginTop: "0.9rem",
 };
 
-const statusLineStyle = {
-  margin: "0.45rem 0 0",
-  fontWeight: 700,
+const statusLabelStyle = {
+  color: "#75685b",
+  fontSize: "0.82rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const statusValueStyle = {
+  color: "#2f251c",
+  fontWeight: 800,
+};
+
+const statusLinkStyle = {
+  border: "none",
+  padding: 0,
+  background: "transparent",
+  color: "#8f2b21",
+  font: "inherit",
+  fontWeight: 900,
+  textDecoration: "underline",
+  cursor: "pointer",
+};
+
+const errorLogStyle = {
+  maxHeight: 150,
+  overflow: "auto",
+  wordBreak: "break-word",
+  margin: "0.65rem 0 0",
+  padding: "0.75rem",
+  borderRadius: 14,
+  background: "rgba(143, 43, 33, 0.08)",
+  color: "#7a241c",
+  fontSize: "0.82rem",
+  lineHeight: 1.45,
+};
+
+const errorMetaStyle = {
+  margin: "0 0 0.35rem",
+  color: "#5f2923",
+  fontWeight: 800,
+};
+
+const errorMessageStyle = {
+  margin: "0.55rem 0 0",
+  whiteSpace: "pre-wrap",
+  font: "inherit",
+};
+
+const progressSectionStyle = {
+  marginTop: "1rem",
+};
+
+const progressHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const progressValueStyle = {
+  color: "#2f251c",
+  fontWeight: 900,
+};
+
+const progressTrackStyle = {
+  height: 9,
+  marginTop: "0.5rem",
+  overflow: "hidden",
+  borderRadius: 999,
+  background: "rgba(67, 53, 39, 0.12)",
+};
+
+const progressFillStyle = {
+  height: "100%",
+  borderRadius: "inherit",
+  background: "linear-gradient(90deg, #1f3441, #5d7b65)",
+  transition: "width 240ms ease",
 };
 
 const helperTextStyle = {
   margin: "0.45rem 0 0",
   color: "#7b6e61",
   fontSize: "0.9rem",
-};
-
-const errorTextStyle = {
-  margin: "0.45rem 0 0",
-  color: "#a32828",
-  fontSize: "0.92rem",
 };
 
 const optionListStyle = {
@@ -1073,15 +1246,6 @@ const dialogButtonsStyle = {
   marginTop: "1rem",
 };
 
-const ghostButtonStyle = {
-  border: "1px solid rgba(67, 53, 39, 0.12)",
-  borderRadius: 12,
-  padding: "0.72rem 0.95rem",
-  background: "#fff",
-  color: "#2f251c",
-  fontWeight: 700,
-};
-
 const primaryButtonStyle = {
   border: "none",
   borderRadius: 12,
@@ -1091,23 +1255,13 @@ const primaryButtonStyle = {
   fontWeight: 800,
 };
 
-const modelDetailsStyle = {
-  marginTop: "1rem",
-  paddingTop: "0.9rem",
-  borderTop: "1px solid rgba(67, 53, 39, 0.08)",
-};
-
-const modelLabelStyle = {
-  margin: 0,
-  fontSize: "0.82rem",
-  fontWeight: 800,
-  color: "#7d6f61",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
+const disabledPrimaryButtonStyle = {
+  opacity: 0.68,
+  cursor: "not-allowed",
 };
 
 const modelTextStyle = {
-  margin: "0.35rem 0 0",
-  fontSize: "0.9rem",
-  color: "#493d31",
+  margin: "0.25rem 0 0",
+  fontSize: "0.82rem",
+  color: "inherit",
 };

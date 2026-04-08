@@ -8,6 +8,7 @@ from config import Config
 
 class GeminiProvider(BaseLLMProvider):
     provider_name = "gemini"
+    base_url = "https://generativelanguage.googleapis.com/v1beta/models"
 
     def recap(self, text_window: str, level: int) -> str:
         output_instruction = Config.RECAP_OUTPUT_INSTRUCTIONS[level - 1]
@@ -17,10 +18,7 @@ class GeminiProvider(BaseLLMProvider):
             "and stay factual and specific."
         )
 
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{Config.GEMINI_RECAP_MODEL}:generateContent?key={Config.GEMINI_API_KEY}"
-        )
+        url = self._model_url(Config.GEMINI_RECAP_MODEL, "generateContent")
         # Some Gemini API variants differ in whether `systemInstruction` is accepted.
         # To keep it robust, we include the "system" prompt directly in the user content.
         payload = {
@@ -40,7 +38,7 @@ class GeminiProvider(BaseLLMProvider):
             ],
         }
 
-        response = requests.post(url, json=payload, timeout=120)
+        response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
         response.raise_for_status()
         data = response.json() or {}
 
@@ -51,27 +49,58 @@ class GeminiProvider(BaseLLMProvider):
             return (data.get("text") or "").strip()
 
     def embed(self, text: str) -> list[float]:
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{Config.GEMINI_EMBEDDING_MODEL}:embedContent?key={Config.GEMINI_API_KEY}"
-        )
+        url = self._model_url(Config.GEMINI_EMBEDDING_MODEL, "embedContent")
         payload = {"content": {"parts": [{"text": text}]}}
 
-        response = requests.post(url, json=payload, timeout=120)
+        response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
         response.raise_for_status()
         data = response.json() or {}
 
         try:
-            values = data["embedding"]["values"]
-            return [float(v) for v in values]
+            return self._embedding_values(data["embedding"])
         except (KeyError, TypeError):
             return []
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        # Keep it simple and reliable: call embed once per text.
-        # Embedding batching can be optimized later once the API response
-        # format is fully validated.
-        return [self.embed(text) for text in texts]
+        if not texts:
+            return []
+
+        model = f"models/{Config.GEMINI_EMBEDDING_MODEL}"
+        url = self._model_url(Config.GEMINI_EMBEDDING_MODEL, "batchEmbedContents")
+        payload = {
+            "requests": [
+                {
+                    "model": model,
+                    "content": {"parts": [{"text": text}]},
+                }
+                for text in texts
+            ],
+        }
+
+        response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
+        response.raise_for_status()
+        data = response.json() or {}
+
+        embeddings = data.get("embeddings") or []
+        if len(embeddings) != len(texts):
+            return []
+        try:
+            return [self._embedding_values(embedding) for embedding in embeddings]
+        except (KeyError, TypeError):
+            return []
+
+    @classmethod
+    def _model_url(cls, model: str, method: str) -> str:
+        return f"{cls.base_url}/{model}:{method}"
+
+    @staticmethod
+    def _headers() -> dict[str, str]:
+        return {"x-goog-api-key": Config.GEMINI_API_KEY}
+
+    @staticmethod
+    def _embedding_values(embedding: dict) -> list[float]:
+        values = embedding["values"]
+        return [float(v) for v in values]
 
     @property
     def recap_model(self) -> str:

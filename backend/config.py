@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -50,6 +51,10 @@ class Config:
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+    INGESTION_LOG_DIR = os.getenv(
+        "INGESTION_LOG_DIR",
+        str(Path(__file__).resolve().parent.parent / ".logs" / "ingestion"),
+    )
 
     @classmethod
     def validate(cls) -> None:

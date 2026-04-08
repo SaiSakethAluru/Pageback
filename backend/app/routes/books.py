@@ -42,9 +42,13 @@ def get_book_status(book_id: str):
         {
             "book_id": book_id,
             "status": status.status,
+            "request_id": status.request_id,
             "progress": status.progress,
             "step": status.step,
             "error": status.error,
+            "error_type": status.error_type,
+            "log_path": status.log_path,
+            "model_config_id": status.model_config_id,
             "llm": {
                 "provider": provider.provider,
                 "recap_model": provider.recap_model,
@@ -62,7 +66,14 @@ def start_ingestion(book_id: str):
     book, result = get_container().ingestion_workflow.start(book_id, user_id)
     if not book:
         return error_response(NotFoundError("Book not found"))
-    return jsonify({"book_id": book_id, "status": result.status, "celery_task_id": result.task_id})
+    return jsonify(
+        {
+            "book_id": book_id,
+            "request_id": result.request_id,
+            "status": result.status,
+            "celery_task_id": result.task_id,
+        }
+    )
 
 
 @books_bp.get("/")

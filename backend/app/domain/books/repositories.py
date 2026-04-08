@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo
+from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo, IngestionRequest
 
 
 class BookRepository(ABC):
@@ -28,6 +28,40 @@ class BookRepository(ABC):
 
     @abstractmethod
     def update_ingestion(self, book_id: str, ingestion: IngestionInfo) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_ingestion_request(self, request: IngestionRequest) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ingestion_request(self, request_id: str, ingestion: IngestionInfo) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def mark_ingestion_request_started(self, request_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def mark_ingestion_request_finished(
+        self,
+        request_id: str,
+        status: str,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ingestion_request_task_id(self, request_id: str, task_id: str | None) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_latest_ingestion_request(self, book_id: str, user_id: str) -> IngestionRequest | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
         raise NotImplementedError
 
     @abstractmethod

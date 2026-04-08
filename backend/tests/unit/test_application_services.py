@@ -1,10 +1,11 @@
 from app.application.auth.service import AuthApplicationService
+from app.application.books.ingestion_service import BookIngestionService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
 from app.application.books.service import BookService
 from app.application.recap.service import RecapService, WindowResolverService
 from app.domain.auth.models import AuthIdentity, User
-from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo
+from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo, IngestionRequest
 from app.domain.positions.models import ReadingPosition
 
 
@@ -41,6 +42,9 @@ class StorageStub:
 class BookRepoStub:
     def __init__(self):
         self.books = {}
+        self.ingestion_requests = {}
+        self.model_config_id = "model-config-123"
+        self.ingestion_history = []
 
     def create(self, book: Book) -> None:
         self.books[(book.id, book.user_id)] = book
@@ -81,6 +85,7 @@ class BookRepoStub:
                 )
 
     def update_ingestion(self, book_id: str, ingestion: IngestionInfo) -> None:
+        self.ingestion_history.append((book_id, ingestion))
         for key, book in list(self.books.items()):
             if book.id == book_id:
                 self.books[key] = Book(
@@ -92,6 +97,90 @@ class BookRepoStub:
                     cover_path=book.cover_path,
                     created_at=book.created_at,
                 )
+
+    def create_ingestion_request(self, request: IngestionRequest) -> None:
+        self.ingestion_requests[request.id] = request
+
+    def update_ingestion_request(self, request_id: str, ingestion: IngestionInfo) -> None:
+        request = self.ingestion_requests[request_id]
+        self.ingestion_requests[request_id] = IngestionRequest(
+            id=request.id,
+            book_id=request.book_id,
+            user_id=request.user_id,
+            book_title=request.book_title,
+            model_config_id=request.model_config_id,
+            status=ingestion.status,
+            progress=ingestion.progress,
+            step=ingestion.step,
+            error_message=ingestion.error,
+            error_type=request.error_type,
+            log_path=request.log_path,
+            celery_task_id=request.celery_task_id,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
+        )
+
+    def mark_ingestion_request_started(self, request_id: str) -> None:
+        pass
+
+    def mark_ingestion_request_finished(
+        self,
+        request_id: str,
+        status: str,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        request = self.ingestion_requests[request_id]
+        self.ingestion_requests[request_id] = IngestionRequest(
+            id=request.id,
+            book_id=request.book_id,
+            user_id=request.user_id,
+            book_title=request.book_title,
+            model_config_id=request.model_config_id,
+            status=status,
+            progress=request.progress,
+            step=request.step,
+            error_type=error_type,
+            error_message=error_message,
+            log_path=request.log_path,
+            celery_task_id=request.celery_task_id,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
+        )
+
+    def update_ingestion_request_task_id(self, request_id: str, task_id: str | None) -> None:
+        request = self.ingestion_requests[request_id]
+        self.ingestion_requests[request_id] = IngestionRequest(
+            id=request.id,
+            book_id=request.book_id,
+            user_id=request.user_id,
+            book_title=request.book_title,
+            model_config_id=request.model_config_id,
+            status=request.status,
+            progress=request.progress,
+            step=request.step,
+            error_type=request.error_type,
+            error_message=request.error_message,
+            log_path=request.log_path,
+            celery_task_id=task_id,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
+        )
+
+    def get_latest_ingestion_request(self, book_id: str, user_id: str):
+        matching = [
+            request
+            for request in self.ingestion_requests.values()
+            if request.book_id == book_id and request.user_id == user_id
+        ]
+        return matching[-1] if matching else None
+
+    def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
+        self.model_config = (provider, recap_model, embedding_model)
+        return self.model_config_id
 
     def delete(self, book_id: str, user_id: str) -> None:
         self.books.pop((book_id, user_id), None)
@@ -176,8 +265,8 @@ class QueueStub:
     def __init__(self):
         self.calls = []
 
-    def enqueue(self, book_id: str, user_id: str, storage_path: str):
-        self.calls.append((book_id, user_id, storage_path))
+    def enqueue(self, request_id: str, book_id: str, user_id: str, storage_path: str):
+        self.calls.append((request_id, book_id, user_id, storage_path))
         return "task-123"
 
 
@@ -273,14 +362,17 @@ def test_ingestion_workflow_enqueues_background_job_and_updates_status():
     book_service = BookService(books, storage, chunks, positions)
     created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
     queue = QueueStub()
-    workflow = BookIngestionWorkflow(book_service, queue)
+    workflow = BookIngestionWorkflow(book_service, queue, LLMStub())
 
     book, result = workflow.start(created.id, "u1")
 
     assert book is not None
+    assert result.request_id
     assert result.status == "processing"
     assert result.task_id == "task-123"
-    assert queue.calls == [(created.id, "u1", created.storage_path)]
+    assert queue.calls == [(result.request_id, created.id, "u1", created.storage_path)]
+    assert books.ingestion_requests[result.request_id].book_title == "Title"
+    assert books.ingestion_requests[result.request_id].model_config_id == "model-config-123"
 
 
 def test_book_lifecycle_workflow_uploads_book_and_cover():
@@ -296,6 +388,51 @@ def test_book_lifecycle_workflow_uploads_book_and_cover():
 
     assert result.status == "ready"
     assert len(storage.uploads) == 2
+
+
+def test_ingestion_embedding_progress_tracks_completed_chunks():
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks_repo = ChunkRepoStub()
+    positions = PositionRepoStub()
+    book_service = BookService(books, storage, chunks_repo, positions)
+    created = book_service.create_book("u1", b"epub", "application/epub+zip", "Title", "Author")
+    request = IngestionRequest(
+        id="req-1",
+        book_id=created.id,
+        user_id="u1",
+        book_title="Title",
+        model_config_id="model-config-123",
+        status="processing",
+        progress=35,
+        step="chunked (150 chunks)",
+    )
+    books.create_ingestion_request(request)
+    books.update_ingestion(
+        created.id,
+        IngestionInfo(status="processing", progress=35, step="chunked (150 chunks)", request_id="req-1"),
+    )
+
+    service = BookIngestionService(books, storage, chunks_repo, LLMStub(), None)
+    source_chunks = [
+        BookChunk(created.id, 0, index, index * 10, index * 10 + 10, 5, f"chunk-{index}")
+        for index in range(150)
+    ]
+
+    service._embed_chunks("req-1", created.id, source_chunks)
+
+    embedding_updates = [
+        ingestion
+        for book_id, ingestion in books.ingestion_history
+        if book_id == created.id and ingestion.step and ingestion.step.startswith("embedding (")
+    ]
+    assert embedding_updates
+    assert embedding_updates[0].step == "embedding (100/150)"
+    assert embedding_updates[0].progress == 75
+    assert not any(
+        ingestion.step == "embedding (0/150)" and ingestion.progress and ingestion.progress > 35
+        for ingestion in embedding_updates
+    )
 
 
 def test_book_lifecycle_workflow_invalidates_cache_on_delete():

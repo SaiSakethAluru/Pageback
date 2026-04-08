@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import datetime, timezone
 
 from supabase import Client
 
-from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo
+from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo, IngestionRequest
 from app.domain.books.repositories import BookRepository, ChunkRepository
 
 logger = logging.getLogger(__name__)
 
 BOOKS_TABLE = "books"
 BOOK_CHUNKS_TABLE = "book_chunks"
+INGESTION_REQUESTS_TABLE = "ingestion_requests"
+INGESTION_REQUEST_EVENTS_TABLE = "ingestion_request_events"
+AI_MODEL_CONFIGS_TABLE = "ai_model_configs"
 
 
 def _map_book(row: dict) -> Book:
@@ -28,10 +32,15 @@ def _map_book(row: dict) -> Book:
             progress=row.get("ingestion_progress"),
             step=row.get("ingestion_step"),
             error=row.get("ingestion_error"),
+            request_id=row.get("ingestion_request_id"),
         ),
         cover_path=row.get("cover_path"),
         created_at=row.get("created_at"),
     )
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class SupabaseBookRepository(BookRepository):
@@ -88,20 +97,156 @@ class SupabaseBookRepository(BookRepository):
             logger.debug("cover_path column missing; skipping cover_path update for book_id=%s", book_id)
 
     def update_ingestion(self, book_id: str, ingestion: IngestionInfo) -> None:
-        self._client().table(BOOKS_TABLE).update({"ingestion_status": ingestion.status}).eq("id", book_id).execute()
-        extra: dict[str, object] = {}
-        if ingestion.step is not None:
-            extra["ingestion_step"] = ingestion.step
-        if ingestion.progress is not None:
-            extra["ingestion_progress"] = ingestion.progress
-        if ingestion.error is not None:
-            extra["ingestion_error"] = ingestion.error
-        if not extra:
-            return
+        extra: dict[str, object] = {
+            "ingestion_status": ingestion.status,
+            "ingestion_progress": ingestion.progress,
+            "ingestion_step": ingestion.step,
+            "ingestion_error": ingestion.error,
+            "ingestion_request_id": ingestion.request_id,
+        }
         try:
             self._client().table(BOOKS_TABLE).update(extra).eq("id", book_id).execute()
         except Exception:
-            logger.debug("Progress columns may not exist; skipping extra update for book_id=%s", book_id)
+            extra.pop("ingestion_request_id", None)
+            try:
+                self._client().table(BOOKS_TABLE).update(extra).eq("id", book_id).execute()
+            except Exception:
+                logger.debug("Progress columns may not exist; skipping extra update for book_id=%s", book_id)
+
+    def create_ingestion_request(self, request: IngestionRequest) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).insert(
+            {
+                "id": request.id,
+                "book_id": request.book_id,
+                "user_id": request.user_id,
+                "book_title": request.book_title,
+                "model_config_id": request.model_config_id,
+                "status": request.status,
+                "progress": request.progress,
+                "step": request.step,
+                "error_type": request.error_type,
+                "error_message": request.error_message,
+                "log_path": request.log_path,
+                "celery_task_id": request.celery_task_id,
+            }
+        ).execute()
+        self._create_ingestion_event(
+            request.id,
+            status=request.status,
+            progress=request.progress,
+            step=request.step,
+        )
+
+    def update_ingestion_request(self, request_id: str, ingestion: IngestionInfo) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).update(
+            {
+                "status": ingestion.status,
+                "progress": ingestion.progress,
+                "step": ingestion.step,
+                "error_message": ingestion.error,
+            }
+        ).eq("id", request_id).execute()
+        self._create_ingestion_event(
+            request_id,
+            status=ingestion.status,
+            progress=ingestion.progress,
+            step=ingestion.step,
+            message=ingestion.error,
+        )
+
+    def mark_ingestion_request_started(self, request_id: str) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).update(
+            {"status": "processing", "started_at": _utc_now()}
+        ).eq("id", request_id).execute()
+        self._create_ingestion_event(request_id, status="processing", step="started")
+
+    def mark_ingestion_request_finished(
+        self,
+        request_id: str,
+        status: str,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).update(
+            {
+                "status": status,
+                "error_type": error_type,
+                "error_message": error_message,
+                "completed_at": _utc_now(),
+            }
+        ).eq("id", request_id).execute()
+        self._create_ingestion_event(
+            request_id,
+            status=status,
+            message=error_message,
+        )
+
+    def update_ingestion_request_task_id(self, request_id: str, task_id: str | None) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).update({"celery_task_id": task_id}).eq("id", request_id).execute()
+
+    def get_latest_ingestion_request(self, book_id: str, user_id: str) -> IngestionRequest | None:
+        response = (
+            self._client()
+            .table(INGESTION_REQUESTS_TABLE)
+            .select("*")
+            .eq("book_id", book_id)
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        if not rows:
+            return None
+        return self._map_ingestion_request(rows[0])
+
+    def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
+        response = (
+            self._client()
+            .table(AI_MODEL_CONFIGS_TABLE)
+            .upsert(
+                {
+                    "provider": provider,
+                    "recap_model": recap_model,
+                    "embedding_model": embedding_model,
+                },
+                on_conflict="provider,recap_model,embedding_model",
+            )
+            .execute()
+        )
+        rows = response.data or []
+        if rows:
+            return str(rows[0]["id"])
+
+        response = (
+            self._client()
+            .table(AI_MODEL_CONFIGS_TABLE)
+            .select("id")
+            .eq("provider", provider)
+            .eq("recap_model", recap_model)
+            .eq("embedding_model", embedding_model)
+            .limit(1)
+            .execute()
+        )
+        return str((response.data or [])[0]["id"])
+
+    def _create_ingestion_event(
+        self,
+        request_id: str,
+        status: str,
+        progress: int | None = None,
+        step: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self._client().table(INGESTION_REQUEST_EVENTS_TABLE).insert(
+            {
+                "request_id": request_id,
+                "status": status,
+                "progress": progress,
+                "step": step,
+                "message": message,
+            }
+        ).execute()
 
     def delete(self, book_id: str, user_id: str) -> None:
         self._client().table(BOOKS_TABLE).delete().eq("id", book_id).eq("user_id", user_id).execute()
@@ -112,17 +257,37 @@ class SupabaseBookRepository(BookRepository):
     def _select_books(self):
         try:
             return self._client().table(BOOKS_TABLE).select(
-                "id, user_id, storage_path, title, author, cover_path, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error"
+                "id, user_id, storage_path, title, author, cover_path, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
             )
         except Exception:
             try:
                 return self._client().table(BOOKS_TABLE).select(
-                    "id, user_id, storage_path, title, author, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error"
+                    "id, user_id, storage_path, title, author, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
                 )
             except Exception:
                 return self._client().table(BOOKS_TABLE).select(
                     "id, user_id, storage_path, title, author, ingestion_status, created_at"
                 )
+
+    @staticmethod
+    def _map_ingestion_request(row: dict) -> IngestionRequest:
+        return IngestionRequest(
+            id=str(row.get("id")),
+            book_id=str(row.get("book_id")),
+            user_id=str(row.get("user_id")),
+            book_title=row.get("book_title"),
+            model_config_id=row.get("model_config_id"),
+            status=str(row.get("status") or "queued"),
+            progress=row.get("progress"),
+            step=row.get("step"),
+            error_type=row.get("error_type"),
+            error_message=row.get("error_message"),
+            log_path=row.get("log_path"),
+            celery_task_id=row.get("celery_task_id"),
+            created_at=row.get("created_at"),
+            started_at=row.get("started_at"),
+            completed_at=row.get("completed_at"),
+        )
 
 
 class SupabaseChunkRepository(ChunkRepository):
