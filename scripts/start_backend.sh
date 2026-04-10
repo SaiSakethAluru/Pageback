@@ -63,11 +63,19 @@ fi
 # This keeps local setup to a single command (plus Redis).
 START_CELERY_WORKER="${START_CELERY_WORKER:-true}"
 if [[ "$START_CELERY_WORKER" == "true" ]]; then
-  # Avoid spawning duplicate workers for the same app.
-  if ! pgrep -f "celery -A app.celery_app worker" >/dev/null 2>&1; then
-    "$ROOT_DIR/scripts/start_celery_worker.sh" >>"$CELERY_LOG_FILE" 2>&1 &
-    printf 'Celery worker logs: %s\n' "$CELERY_LOG_FILE"
+  EXISTING_CELERY_PIDS="$(pgrep -f "celery -A app.celery_app worker" || true)"
+  if [[ -n "$EXISTING_CELERY_PIDS" ]]; then
+    printf 'Restarting existing Celery worker(s): %s\n' "$EXISTING_CELERY_PIDS"
+    pkill -f "celery -A app.celery_app worker" || true
+    for _ in {1..40}; do
+      if ! pgrep -f "celery -A app.celery_app worker" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.25
+    done
   fi
+  "$ROOT_DIR/scripts/start_celery_worker.sh" >>"$CELERY_LOG_FILE" 2>&1 &
+  printf 'Celery worker logs: %s\n' "$CELERY_LOG_FILE"
 fi
 
 exec "$VENV_PYTHON" run.py

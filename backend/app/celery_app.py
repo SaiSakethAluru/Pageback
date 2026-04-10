@@ -16,8 +16,10 @@ celery_app = Celery(
 celery_app.conf.update(
     task_ignore_result=True,
     task_track_started=True,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,
 )
 
 # Register tasks on worker startup.
 import app.tasks.ingestion_tasks  # noqa: E402,F401
-
