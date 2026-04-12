@@ -53,6 +53,33 @@ export async function startIngestion(bookId) {
   });
 }
 
+export async function getIngestionRequests() {
+  return request("/api/v1/books/ingestion/requests", {
+    credentials: "include",
+  });
+}
+
+export async function pauseIngestion(requestId) {
+  return request(`/api/v1/books/ingestion/${requestId}/pause`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export async function resumeIngestion(requestId) {
+  return request(`/api/v1/books/ingestion/${requestId}/resume`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export async function cancelIngestion(requestId) {
+  return request(`/api/v1/books/ingestion/${requestId}/cancel`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export async function getBooks() {
   return request("/api/v1/books/", {
     credentials: "include",

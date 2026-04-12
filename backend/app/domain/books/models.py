@@ -32,6 +32,11 @@ class IngestionRequest:
     error_message: str | None = None
     log_path: str | None = None
     celery_task_id: str | None = None
+    control_status: str = "active"
+    embedded_chunks: int = 0
+    total_chunks: int | None = None
+    embedded_tokens: int = 0
+    total_tokens: int | None = None
     created_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None

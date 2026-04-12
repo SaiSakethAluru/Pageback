@@ -128,6 +128,11 @@ class SupabaseBookRepository(BookRepository):
                 "error_message": request.error_message,
                 "log_path": request.log_path,
                 "celery_task_id": request.celery_task_id,
+                "control_status": request.control_status,
+                "embedded_chunks": request.embedded_chunks,
+                "total_chunks": request.total_chunks,
+                "embedded_tokens": request.embedded_tokens,
+                "total_tokens": request.total_tokens,
             }
         ).execute()
         self._create_ingestion_event(
@@ -156,7 +161,7 @@ class SupabaseBookRepository(BookRepository):
 
     def mark_ingestion_request_started(self, request_id: str) -> None:
         self._client().table(INGESTION_REQUESTS_TABLE).update(
-            {"status": "processing", "started_at": _utc_now()}
+            {"status": "processing", "control_status": "active", "started_at": _utc_now()}
         ).eq("id", request_id).execute()
         self._create_ingestion_event(request_id, status="processing", step="started")
 
@@ -172,6 +177,7 @@ class SupabaseBookRepository(BookRepository):
                 "status": status,
                 "error_type": error_type,
                 "error_message": error_message,
+                "control_status": "active" if status == "complete" else status,
                 "completed_at": _utc_now(),
             }
         ).eq("id", request_id).execute()
@@ -199,6 +205,57 @@ class SupabaseBookRepository(BookRepository):
         if not rows:
             return None
         return self._map_ingestion_request(rows[0])
+
+    def get_ingestion_request(self, request_id: str) -> IngestionRequest | None:
+        response = (
+            self._client()
+            .table(INGESTION_REQUESTS_TABLE)
+            .select("*")
+            .eq("id", request_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        if not rows:
+            return None
+        return self._map_ingestion_request(rows[0])
+
+    def list_ingestion_requests_by_user(self, user_id: str, statuses: list[str] | None = None) -> list[IngestionRequest]:
+        query = (
+            self._client()
+            .table(INGESTION_REQUESTS_TABLE)
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+        )
+        if statuses:
+            query = query.in_("status", statuses)
+        response = query.execute()
+        return [self._map_ingestion_request(row) for row in (response.data or [])]
+
+    def update_ingestion_request_progress(
+        self,
+        request_id: str,
+        embedded_chunks: int,
+        total_chunks: int,
+        embedded_tokens: int,
+        total_tokens: int,
+    ) -> None:
+        self._client().table(INGESTION_REQUESTS_TABLE).update(
+            {
+                "embedded_chunks": embedded_chunks,
+                "total_chunks": total_chunks,
+                "embedded_tokens": embedded_tokens,
+                "total_tokens": total_tokens,
+            }
+        ).eq("id", request_id).execute()
+
+    def update_ingestion_request_control(self, request_id: str, control_status: str, status: str | None = None) -> None:
+        update: dict[str, object] = {"control_status": control_status}
+        if status:
+            update["status"] = status
+        self._client().table(INGESTION_REQUESTS_TABLE).update(update).eq("id", request_id).execute()
+        self._create_ingestion_event(request_id, status=status or control_status, step=control_status)
 
     def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
         response = (
@@ -284,6 +341,11 @@ class SupabaseBookRepository(BookRepository):
             error_message=row.get("error_message"),
             log_path=row.get("log_path"),
             celery_task_id=row.get("celery_task_id"),
+            control_status=str(row.get("control_status") or "active"),
+            embedded_chunks=int(row.get("embedded_chunks") or 0),
+            total_chunks=int(row["total_chunks"]) if row.get("total_chunks") is not None else None,
+            embedded_tokens=int(row.get("embedded_tokens") or 0),
+            total_tokens=int(row["total_tokens"]) if row.get("total_tokens") is not None else None,
             created_at=row.get("created_at"),
             started_at=row.get("started_at"),
             completed_at=row.get("completed_at"),
@@ -301,6 +363,11 @@ class SupabaseChunkRepository(ChunkRepository):
         self.delete_by_book(book_id)
         if not chunks:
             return
+        self.upsert_for_book(book_id, chunks)
+
+    def upsert_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
+        if not chunks:
+            return
         rows = [
             {
                 "book_id": chunk.book_id,
@@ -314,7 +381,23 @@ class SupabaseChunkRepository(ChunkRepository):
             }
             for chunk in chunks
         ]
-        self._client_factory().table(BOOK_CHUNKS_TABLE).insert(rows).execute()
+        self._client_factory().table(BOOK_CHUNKS_TABLE).upsert(
+            rows,
+            on_conflict="book_id,chapter_index,chunk_index",
+        ).execute()
+
+    def find_embedded_keys(self, book_id: str) -> set[tuple[int, int]]:
+        response = (
+            self._client_factory()
+            .table(BOOK_CHUNKS_TABLE)
+            .select("chapter_index, chunk_index")
+            .eq("book_id", book_id)
+            .execute()
+        )
+        return {
+            (int(row.get("chapter_index") or 0), int(row.get("chunk_index") or 0))
+            for row in (response.data or [])
+        }
 
     def find_before_position(self, book_id: str, position_char: int) -> list[BookChunk]:
         response = (

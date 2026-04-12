@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.application.books.dto import BookDTO, BookFileDTO, BookStatusDTO
+from app.application.books.dto import BookDTO, BookFileDTO, BookStatusDTO, IngestionRequestDTO
 from app.domain.books.models import Book, BookMetadata, IngestionInfo, IngestionRequest
 from app.domain.books.repositories import BookRepository, BookStorage, ChunkRepository
 from app.domain.positions.repositories import ReadingPositionRepository
@@ -103,6 +103,49 @@ class BookService:
             error_message=error_message,
         )
 
+    def get_ingestion_request(self, request_id: str) -> IngestionRequest | None:
+        return self._books.get_ingestion_request(request_id)
+
+    def list_active_ingestion_requests(self, user_id: str) -> list[IngestionRequestDTO]:
+        requests = self._books.list_ingestion_requests_by_user(
+            user_id,
+            statuses=["queued", "processing", "paused", "failed"],
+        )
+        return [self._to_ingestion_request_dto(request) for request in requests]
+
+    def pause_ingestion_request(self, request_id: str, user_id: str) -> IngestionRequestDTO | None:
+        request = self._books.get_ingestion_request(request_id)
+        if not request or request.user_id != user_id:
+            return None
+        self._books.update_ingestion_request_control(request_id, control_status="paused", status="paused")
+        self.update_ingestion_status(
+            request.book_id,
+            status="paused",
+            progress=request.progress,
+            step="paused",
+            request_id=request_id,
+        )
+        updated = self._books.get_ingestion_request(request_id) or request
+        return self._to_ingestion_request_dto(updated)
+
+    def cancel_ingestion_request(self, request_id: str, user_id: str) -> IngestionRequestDTO | None:
+        request = self._books.get_ingestion_request(request_id)
+        if not request or request.user_id != user_id:
+            return None
+        self._books.update_ingestion_request_control(request_id, control_status="canceled", status="canceled")
+        self._chunks.delete_by_book(request.book_id)
+        self.update_ingestion_status(
+            request.book_id,
+            status="canceled",
+            progress=0,
+            step="canceled",
+            error=None,
+            request_id=request_id,
+        )
+        self._books.mark_ingestion_request_finished(request_id, status="canceled")
+        updated = self._books.get_ingestion_request(request_id) or request
+        return self._to_ingestion_request_dto(updated)
+
     def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
         return self._books.ensure_model_config(provider, recap_model, embedding_model)
 
@@ -176,4 +219,25 @@ class BookService:
             ingestion_step=book.ingestion.step,
             ingestion_error=book.ingestion.error,
             created_at=book.created_at,
+        )
+
+    @staticmethod
+    def _to_ingestion_request_dto(request: IngestionRequest) -> IngestionRequestDTO:
+        return IngestionRequestDTO(
+            id=request.id,
+            book_id=request.book_id,
+            book_title=request.book_title,
+            status=request.status,
+            control_status=request.control_status,
+            progress=request.progress,
+            step=request.step,
+            error_type=request.error_type,
+            error_message=request.error_message,
+            embedded_chunks=request.embedded_chunks,
+            total_chunks=request.total_chunks,
+            embedded_tokens=request.embedded_tokens,
+            total_tokens=request.total_tokens,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
         )

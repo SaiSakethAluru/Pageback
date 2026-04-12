@@ -43,3 +43,23 @@ class BookStatusDTO:
     request_id: str | None = None
     log_path: str | None = None
     model_config_id: str | None = None
+
+
+@dataclass(frozen=True)
+class IngestionRequestDTO:
+    id: str
+    book_id: str
+    book_title: str | None
+    status: str
+    control_status: str
+    progress: int | None
+    step: str | None
+    error_type: str | None
+    error_message: str | None
+    embedded_chunks: int
+    total_chunks: int | None
+    embedded_tokens: int
+    total_tokens: int | None
+    created_at: str | None
+    started_at: str | None
+    completed_at: str | None

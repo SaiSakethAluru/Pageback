@@ -1,10 +1,33 @@
 import os
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 
 load_dotenv()
+
+_CONFIG_DIR = Path(__file__).resolve().parent / "app_config"
+
+
+def _load_json_config(filename: str) -> dict:
+    filepath = _CONFIG_DIR / filename
+    try:
+        with filepath.open(encoding="utf-8") as config_file:
+            data = json.load(config_file)
+            return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+
+
+def _int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    return int(value) if value else default
+
+
+def _float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    return float(value) if value else default
 
 
 def _gemini_embedding_model() -> str:
@@ -54,6 +77,49 @@ class Config:
     INGESTION_LOG_DIR = os.getenv(
         "INGESTION_LOG_DIR",
         str(Path(__file__).resolve().parent.parent / ".logs" / "ingestion"),
+    )
+    LLM_LIMITS = _load_json_config("llm_limits.json")
+    _GEMINI_EMBEDDING_LIMITS = LLM_LIMITS.get("gemini", {}).get("embedding", {})
+    _GEMINI_EMBEDDING_RETRY = _GEMINI_EMBEDDING_LIMITS.get("retry", {})
+    GEMINI_EMBEDDING_REQUESTS_PER_MINUTE = _int_env(
+        "GEMINI_EMBEDDING_REQUESTS_PER_MINUTE",
+        int(_GEMINI_EMBEDDING_LIMITS.get("requests_per_minute", 100)),
+    )
+    GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE = _int_env(
+        "GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE",
+        int(_GEMINI_EMBEDDING_LIMITS.get("input_tokens_per_minute", 30000)),
+    )
+    GEMINI_EMBEDDING_REQUESTS_PER_DAY = _int_env(
+        "GEMINI_EMBEDDING_REQUESTS_PER_DAY",
+        int(_GEMINI_EMBEDDING_LIMITS.get("requests_per_day", 1000)),
+    )
+    GEMINI_EMBEDDING_MAX_BATCH_CHUNKS = _int_env(
+        "GEMINI_EMBEDDING_MAX_BATCH_CHUNKS",
+        int(_GEMINI_EMBEDDING_LIMITS.get("max_batch_chunks", 100)),
+    )
+    GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS = _int_env(
+        "GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS",
+        int(_GEMINI_EMBEDDING_LIMITS.get("max_batch_input_tokens", 25000)),
+    )
+    GEMINI_EMBEDDING_INTER_BATCH_JITTER_SECONDS = _float_env(
+        "GEMINI_EMBEDDING_INTER_BATCH_JITTER_SECONDS",
+        float(_GEMINI_EMBEDDING_LIMITS.get("inter_batch_jitter_seconds", 1.5)),
+    )
+    GEMINI_EMBEDDING_RETRY_MAX_ATTEMPTS = _int_env(
+        "GEMINI_EMBEDDING_RETRY_MAX_ATTEMPTS",
+        int(_GEMINI_EMBEDDING_RETRY.get("max_attempts", 5)),
+    )
+    GEMINI_EMBEDDING_RETRY_INITIAL_DELAY_SECONDS = _float_env(
+        "GEMINI_EMBEDDING_RETRY_INITIAL_DELAY_SECONDS",
+        float(_GEMINI_EMBEDDING_RETRY.get("initial_delay_seconds", 2)),
+    )
+    GEMINI_EMBEDDING_RETRY_MAX_DELAY_SECONDS = _float_env(
+        "GEMINI_EMBEDDING_RETRY_MAX_DELAY_SECONDS",
+        float(_GEMINI_EMBEDDING_RETRY.get("max_delay_seconds", 60)),
+    )
+    GEMINI_EMBEDDING_RETRY_JITTER_SECONDS = _float_env(
+        "GEMINI_EMBEDDING_RETRY_JITTER_SECONDS",
+        float(_GEMINI_EMBEDDING_RETRY.get("jitter_seconds", 1)),
     )
 
     @classmethod

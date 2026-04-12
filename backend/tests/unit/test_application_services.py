@@ -116,6 +116,11 @@ class BookRepoStub:
             error_type=request.error_type,
             log_path=request.log_path,
             celery_task_id=request.celery_task_id,
+            control_status=request.control_status,
+            embedded_chunks=request.embedded_chunks,
+            total_chunks=request.total_chunks,
+            embedded_tokens=request.embedded_tokens,
+            total_tokens=request.total_tokens,
             created_at=request.created_at,
             started_at=request.started_at,
             completed_at=request.completed_at,
@@ -145,6 +150,11 @@ class BookRepoStub:
             error_message=error_message,
             log_path=request.log_path,
             celery_task_id=request.celery_task_id,
+            control_status=request.control_status,
+            embedded_chunks=request.embedded_chunks,
+            total_chunks=request.total_chunks,
+            embedded_tokens=request.embedded_tokens,
+            total_tokens=request.total_tokens,
             created_at=request.created_at,
             started_at=request.started_at,
             completed_at=request.completed_at,
@@ -165,6 +175,11 @@ class BookRepoStub:
             error_message=request.error_message,
             log_path=request.log_path,
             celery_task_id=task_id,
+            control_status=request.control_status,
+            embedded_chunks=request.embedded_chunks,
+            total_chunks=request.total_chunks,
+            embedded_tokens=request.embedded_tokens,
+            total_tokens=request.total_tokens,
             created_at=request.created_at,
             started_at=request.started_at,
             completed_at=request.completed_at,
@@ -177,6 +192,73 @@ class BookRepoStub:
             if request.book_id == book_id and request.user_id == user_id
         ]
         return matching[-1] if matching else None
+
+    def get_ingestion_request(self, request_id: str):
+        return self.ingestion_requests.get(request_id)
+
+    def list_ingestion_requests_by_user(self, user_id: str, statuses: list[str] | None = None):
+        return [
+            request
+            for request in self.ingestion_requests.values()
+            if request.user_id == user_id and (not statuses or request.status in statuses)
+        ]
+
+    def update_ingestion_request_progress(
+        self,
+        request_id: str,
+        embedded_chunks: int,
+        total_chunks: int,
+        embedded_tokens: int,
+        total_tokens: int,
+    ) -> None:
+        request = self.ingestion_requests[request_id]
+        self.ingestion_requests[request_id] = IngestionRequest(
+            id=request.id,
+            book_id=request.book_id,
+            user_id=request.user_id,
+            book_title=request.book_title,
+            model_config_id=request.model_config_id,
+            status=request.status,
+            progress=request.progress,
+            step=request.step,
+            error_type=request.error_type,
+            error_message=request.error_message,
+            log_path=request.log_path,
+            celery_task_id=request.celery_task_id,
+            control_status=request.control_status,
+            embedded_chunks=embedded_chunks,
+            total_chunks=total_chunks,
+            embedded_tokens=embedded_tokens,
+            total_tokens=total_tokens,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
+        )
+
+    def update_ingestion_request_control(self, request_id: str, control_status: str, status: str | None = None) -> None:
+        request = self.ingestion_requests[request_id]
+        self.ingestion_requests[request_id] = IngestionRequest(
+            id=request.id,
+            book_id=request.book_id,
+            user_id=request.user_id,
+            book_title=request.book_title,
+            model_config_id=request.model_config_id,
+            status=status or request.status,
+            progress=request.progress,
+            step=request.step,
+            error_type=request.error_type,
+            error_message=request.error_message,
+            log_path=request.log_path,
+            celery_task_id=request.celery_task_id,
+            control_status=control_status,
+            embedded_chunks=request.embedded_chunks,
+            total_chunks=request.total_chunks,
+            embedded_tokens=request.embedded_tokens,
+            total_tokens=request.total_tokens,
+            created_at=request.created_at,
+            started_at=request.started_at,
+            completed_at=request.completed_at,
+        )
 
     def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
         self.model_config = (provider, recap_model, embedding_model)
@@ -197,6 +279,19 @@ class ChunkRepoStub:
 
     def replace_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
         self.before = chunks
+
+    def upsert_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
+        by_key = {(chunk.chapter_index, chunk.chunk_index): chunk for chunk in self.before}
+        for chunk in chunks:
+            by_key[(chunk.chapter_index, chunk.chunk_index)] = chunk
+        self.before = list(by_key.values())
+
+    def find_embedded_keys(self, book_id: str):
+        return {
+            (chunk.chapter_index, chunk.chunk_index)
+            for chunk in self.before
+            if chunk.book_id == book_id and chunk.embedding is not None
+        }
 
     def find_before_position(self, book_id: str, position_char: int):
         return self.before

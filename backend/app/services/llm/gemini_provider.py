@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import random
+import time
+
 import requests
 
 from app.services.llm.base_provider import BaseLLMProvider
@@ -77,7 +80,7 @@ class GeminiProvider(BaseLLMProvider):
             ],
         }
 
-        response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
+        response = self._post_with_rate_limit_retry(url, payload)
         response.raise_for_status()
         data = response.json() or {}
 
@@ -96,6 +99,29 @@ class GeminiProvider(BaseLLMProvider):
     @staticmethod
     def _headers() -> dict[str, str]:
         return {"x-goog-api-key": Config.GEMINI_API_KEY}
+
+    @classmethod
+    def _post_with_rate_limit_retry(cls, url: str, payload: dict) -> requests.Response:
+        max_attempts = max(1, Config.GEMINI_EMBEDDING_RETRY_MAX_ATTEMPTS)
+        delay = max(0, Config.GEMINI_EMBEDDING_RETRY_INITIAL_DELAY_SECONDS)
+        for attempt in range(1, max_attempts + 1):
+            response = requests.post(url, json=payload, headers=cls._headers(), timeout=120)
+            if getattr(response, "status_code", None) != 429 or attempt == max_attempts:
+                return response
+
+            retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    sleep_for = float(retry_after)
+                except ValueError:
+                    sleep_for = delay
+            else:
+                jitter = random.uniform(0, max(0, Config.GEMINI_EMBEDDING_RETRY_JITTER_SECONDS))
+                sleep_for = delay + jitter
+
+            time.sleep(sleep_for)
+            delay = min(max(delay * 2, delay + 1), Config.GEMINI_EMBEDDING_RETRY_MAX_DELAY_SECONDS)
+        return response
 
     @staticmethod
     def _embedding_values(embedding: dict) -> list[float]:

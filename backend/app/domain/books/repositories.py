@@ -61,6 +61,29 @@ class BookRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_ingestion_request(self, request_id: str) -> IngestionRequest | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_ingestion_requests_by_user(self, user_id: str, statuses: list[str] | None = None) -> list[IngestionRequest]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ingestion_request_progress(
+        self,
+        request_id: str,
+        embedded_chunks: int,
+        total_chunks: int,
+        embedded_tokens: int,
+        total_tokens: int,
+    ) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ingestion_request_control(self, request_id: str, control_status: str, status: str | None = None) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def ensure_model_config(self, provider: str, recap_model: str, embedding_model: str) -> str:
         raise NotImplementedError
 
@@ -76,6 +99,14 @@ class ChunkRepository(ABC):
 
     @abstractmethod
     def replace_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def upsert_for_book(self, book_id: str, chunks: list[BookChunk]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_embedded_keys(self, book_id: str) -> set[tuple[int, int]]:
         raise NotImplementedError
 
     @abstractmethod

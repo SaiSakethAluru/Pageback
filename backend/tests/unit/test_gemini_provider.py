@@ -4,8 +4,10 @@ from app.services.llm.gemini_provider import GeminiProvider
 
 
 class FakeResponse:
-    def __init__(self, data):
+    def __init__(self, data, status_code=200, headers=None):
         self.data = data
+        self.status_code = status_code
+        self.headers = headers or {}
         self.raised_for_status = False
 
     def raise_for_status(self):
@@ -74,3 +76,23 @@ def test_embed_batch_skips_api_call_for_empty_input(monkeypatch):
     monkeypatch.setattr("app.services.llm.gemini_provider.requests.post", fake_post)
 
     assert GeminiProvider().embed_batch([]) == []
+
+
+def test_embed_batch_retries_rate_limits(monkeypatch):
+    calls = []
+    responses = [
+        FakeResponse({}, status_code=429, headers={"Retry-After": "0"}),
+        FakeResponse({"embeddings": [{"values": [1, 2]}]}, status_code=200),
+    ]
+
+    def fake_post(url, json, headers, timeout):
+        calls.append((url, json, headers, timeout))
+        return responses.pop(0)
+
+    monkeypatch.setattr(Config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-test")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_RETRY_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr("app.services.llm.gemini_provider.requests.post", fake_post)
+
+    assert GeminiProvider().embed_batch(["chunk"]) == [[1.0, 2.0]]
+    assert len(calls) == 2

@@ -1,0 +1,18 @@
+{
+  "gemini": {
+    "embedding": {
+      "requests_per_minute": 100,
+      "input_tokens_per_minute": 30000,
+      "requests_per_day": 1000,
+      "max_batch_chunks": 100,
+      "max_batch_input_tokens": 25000,
+      "inter_batch_jitter_seconds": 1.5,
+      "retry": {
+        "max_attempts": 5,
+        "initial_delay_seconds": 2,
+        "max_delay_seconds": 60,
+        "jitter_seconds": 1
+      }
+    }
+  }
+}

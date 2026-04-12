@@ -93,6 +93,33 @@ class BookIngestionWorkflow:
             task_id=task_id,
         )
 
+    def resume(self, request_id: str, user_id: str) -> IngestionStartResultDTO | None:
+        request = self._books.get_ingestion_request(request_id)
+        if not request or request.user_id != user_id:
+            return None
+
+        book = self._books.get_book(request.book_id, user_id)
+        if not book:
+            return None
+
+        self._books.update_ingestion_request_control(request_id, control_status="active", status="queued")
+        self._books.update_ingestion_status(
+            request.book_id,
+            status="processing",
+            progress=request.progress,
+            step="queued",
+            error=None,
+            request_id=request_id,
+        )
+        task_id = self._queue.enqueue(request_id, request.book_id, user_id, book.storage_path)
+        self._books.update_ingestion_request_task_id(request_id, task_id)
+        return IngestionStartResultDTO(
+            book_id=request.book_id,
+            request_id=request_id,
+            status="processing",
+            task_id=task_id,
+        )
+
 
 def _concise_error(exc: Exception) -> str:
     message = str(exc).splitlines()[0] if str(exc) else ""

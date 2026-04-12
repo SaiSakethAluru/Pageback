@@ -76,6 +76,51 @@ def start_ingestion(book_id: str):
     )
 
 
+@books_bp.get("/ingestion/requests")
+@require_auth
+def list_ingestion_requests():
+    user_id = current_user_id()
+    requests = get_container().book_service.list_active_ingestion_requests(user_id)
+    return jsonify([asdict(request) for request in requests])
+
+
+@books_bp.post("/ingestion/<request_id>/pause")
+@require_auth
+def pause_ingestion(request_id: str):
+    user_id = current_user_id()
+    request_dto = get_container().book_service.pause_ingestion_request(request_id, user_id)
+    if not request_dto:
+        return error_response(NotFoundError("Ingestion request not found"))
+    return jsonify(asdict(request_dto))
+
+
+@books_bp.post("/ingestion/<request_id>/resume")
+@require_auth
+def resume_ingestion(request_id: str):
+    user_id = current_user_id()
+    result = get_container().ingestion_workflow.resume(request_id, user_id)
+    if not result:
+        return error_response(NotFoundError("Ingestion request not found"))
+    return jsonify(
+        {
+            "book_id": result.book_id,
+            "request_id": result.request_id,
+            "status": result.status,
+            "celery_task_id": result.task_id,
+        }
+    )
+
+
+@books_bp.post("/ingestion/<request_id>/cancel")
+@require_auth
+def cancel_ingestion(request_id: str):
+    user_id = current_user_id()
+    request_dto = get_container().book_service.cancel_ingestion_request(request_id, user_id)
+    if not request_dto:
+        return error_response(NotFoundError("Ingestion request not found"))
+    return jsonify(asdict(request_dto))
+
+
 @books_bp.get("/")
 @require_auth
 def list_books():
