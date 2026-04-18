@@ -24,4 +24,4 @@ cd "$BACKEND_DIR"
 # Sourcing the file in bash is fragile because secrets may contain shell
 # metacharacters like parentheses, ampersands, or spaces.
 
-exec "$VENV_PYTHON" -m celery -A app.celery_app worker --loglevel=INFO
+exec "$VENV_PYTHON" -m celery -A app.celery_app worker --loglevel=INFO --concurrency="${CELERY_WORKER_CONCURRENCY:-1}"

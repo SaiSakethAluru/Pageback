@@ -221,7 +221,10 @@ class BookIngestionService:
                 progress=35 + int(60 * (completed / max(total, 1))),
             )
             if batch_index < len(batches) - 1:
-                self._sleep_for_embedding_rate_limit(sum(chunk.token_count for chunk in batch))
+                self._sleep_for_embedding_rate_limit(
+                    sum(chunk.token_count for chunk in batch),
+                    request_units=len(batch),
+                )
         return embedded_chunks
 
     def _embedding_batches(self, chunks: list[BookChunk]) -> list[list[BookChunk]]:
@@ -249,12 +252,12 @@ class BookIngestionService:
             batches.append(current)
         return batches
 
-    def _sleep_for_embedding_rate_limit(self, input_tokens: int) -> None:
+    def _sleep_for_embedding_rate_limit(self, input_tokens: int, request_units: int = 1) -> None:
         if self._llm.provider_name != "gemini":
             return
         requests_per_minute = max(1, Config.GEMINI_EMBEDDING_REQUESTS_PER_MINUTE)
         tokens_per_minute = max(1, Config.GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE)
-        request_delay = 60 / requests_per_minute
+        request_delay = 60 * (max(1, request_units) / requests_per_minute)
         token_delay = 60 * (input_tokens / tokens_per_minute)
         jitter = random.uniform(0, max(0, Config.GEMINI_EMBEDDING_INTER_BATCH_JITTER_SECONDS))
         time.sleep(max(request_delay, token_delay) + jitter)

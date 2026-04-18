@@ -7,6 +7,7 @@ from app.application.recap.service import RecapService, WindowResolverService
 from app.domain.auth.models import AuthIdentity, User
 from app.domain.books.models import Book, BookChunk, BookMetadata, IngestionInfo, IngestionRequest
 from app.domain.positions.models import ReadingPosition
+from config import Config
 
 
 class UserRepoStub:
@@ -348,6 +349,17 @@ class LLMStub:
         return [[0.1, 0.2] for _ in texts]
 
 
+class GeminiLLMStub(LLMStub):
+    provider_name = "gemini"
+
+    def __init__(self):
+        self.embed_batch_calls = []
+
+    def embed_batch(self, texts: list[str]):
+        self.embed_batch_calls.append(texts)
+        return [[0.1, 0.2] for _ in texts]
+
+
 class UsageLogStub:
     def __init__(self):
         self.calls = []
@@ -528,6 +540,64 @@ def test_ingestion_embedding_progress_tracks_completed_chunks():
         ingestion.step == "embedding (0/150)" and ingestion.progress and ingestion.progress > 35
         for ingestion in embedding_updates
     )
+
+
+def test_gemini_ingestion_batches_use_conservative_chunk_limit(monkeypatch):
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks_repo = ChunkRepoStub()
+    llm = GeminiLLMStub()
+    service = BookIngestionService(books, storage, chunks_repo, llm, None)
+    source_chunks = [
+        BookChunk("book-1", 0, index, index * 10, index * 10 + 10, 5, f"chunk-{index}")
+        for index in range(25)
+    ]
+
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MAX_BATCH_CHUNKS", 10)
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS", 5000)
+    monkeypatch.setattr(service, "_sleep_for_embedding_rate_limit", lambda *_args, **_kwargs: None)
+
+    service._embed_chunks(None, "book-1", source_chunks)
+
+    assert [len(call) for call in llm.embed_batch_calls] == [10, 10, 5]
+
+
+def test_gemini_ingestion_sleep_counts_batch_items_as_request_units(monkeypatch):
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks_repo = ChunkRepoStub()
+    llm = GeminiLLMStub()
+    service = BookIngestionService(books, storage, chunks_repo, llm, None)
+    source_chunks = [
+        BookChunk("book-1", 0, index, index * 10, index * 10 + 10, 5, f"chunk-{index}")
+        for index in range(25)
+    ]
+    sleep_calls = []
+
+    def fake_sleep(input_tokens, request_units=1):
+        sleep_calls.append((input_tokens, request_units))
+
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MAX_BATCH_CHUNKS", 10)
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS", 5000)
+    monkeypatch.setattr(service, "_sleep_for_embedding_rate_limit", fake_sleep)
+
+    service._embed_chunks(None, "book-1", source_chunks)
+
+    assert sleep_calls == [(50, 10), (50, 10)]
+
+
+def test_gemini_embedding_sleep_uses_batch_request_units(monkeypatch):
+    service = BookIngestionService(BookRepoStub(), StorageStub(), ChunkRepoStub(), GeminiLLMStub(), None)
+    sleeps = []
+
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_REQUESTS_PER_MINUTE", 60)
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE", 60000)
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_INTER_BATCH_JITTER_SECONDS", 0)
+    monkeypatch.setattr("app.application.books.ingestion_service.time.sleep", sleeps.append)
+
+    service._sleep_for_embedding_rate_limit(input_tokens=100, request_units=10)
+
+    assert sleeps == [10]
 
 
 def test_book_lifecycle_workflow_invalidates_cache_on_delete():
