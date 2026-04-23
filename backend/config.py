@@ -82,6 +82,10 @@ class Config:
     LLM_LIMITS = _load_json_config("llm_limits.json")
     _GEMINI_EMBEDDING_LIMITS = LLM_LIMITS.get("gemini", {}).get("embedding", {})
     _GEMINI_EMBEDDING_RETRY = _GEMINI_EMBEDDING_LIMITS.get("retry", {})
+    GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY = _int_env(
+        "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY",
+        int(_GEMINI_EMBEDDING_LIMITS.get("output_dimensionality", 1536)),
+    )
     GEMINI_EMBEDDING_REQUESTS_PER_MINUTE = _int_env(
         "GEMINI_EMBEDDING_REQUESTS_PER_MINUTE",
         int(_GEMINI_EMBEDDING_LIMITS.get("requests_per_minute", 100)),

@@ -164,7 +164,9 @@ alter table public.books
 
 Embedding note (important):
 - The Supabase `book_chunks.embedding` vector dimension (and the `match_chunks` RPC) must match the embedding model configured via `*_EMBEDDING_MODEL`.
-- For example, `gemini-embedding-001` uses 3072-dimensional vectors, while the default OpenAI embedding model uses a different dimension.
+- The default schema uses `vector(1536)`. OpenAI `text-embedding-3-small` produces 1536-dimensional vectors.
+- `gemini-embedding-001` produces 3072-dimensional vectors by default, so Pageback requests 1536-dimensional Gemini embeddings via `GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY=1536`.
+- If you change `GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY`, update the Supabase vector dimension and re-ingest existing chunks so stored and query embeddings match.
 
 ## Production Caveats
 - `threading.Thread` has been replaced with Celery for background ingestion.

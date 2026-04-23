@@ -53,7 +53,10 @@ class GeminiProvider(BaseLLMProvider):
 
     def embed(self, text: str) -> list[float]:
         url = self._model_url(Config.GEMINI_EMBEDDING_MODEL, "embedContent")
-        payload = {"content": {"parts": [{"text": text}]}}
+        payload = {
+            "content": {"parts": [{"text": text}]},
+            "outputDimensionality": Config.GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY,
+        }
 
         response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
         response.raise_for_status()
@@ -75,6 +78,7 @@ class GeminiProvider(BaseLLMProvider):
                 {
                     "model": model,
                     "content": {"parts": [{"text": text}]},
+                    "outputDimensionality": Config.GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY,
                 }
                 for text in texts
             ],

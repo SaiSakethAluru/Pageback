@@ -1,6 +1,7 @@
 {
   "gemini": {
     "embedding": {
+      "output_dimensionality": 1536,
       "requests_per_minute": 100,
       "input_tokens_per_minute": 30000,
       "requests_per_day": 1000,

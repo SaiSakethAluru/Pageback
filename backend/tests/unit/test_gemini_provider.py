@@ -41,6 +41,7 @@ def test_embed_batch_uses_gemini_batch_endpoint(monkeypatch):
 
     monkeypatch.setattr(Config, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-test")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY", 1536)
     monkeypatch.setattr("app.services.llm.gemini_provider.requests.post", fake_post)
 
     embeddings = GeminiProvider().embed_batch(["first chunk", "second chunk"])
@@ -55,10 +56,12 @@ def test_embed_batch_uses_gemini_batch_endpoint(monkeypatch):
                     {
                         "model": "models/gemini-embedding-test",
                         "content": {"parts": [{"text": "first chunk"}]},
+                        "outputDimensionality": 1536,
                     },
                     {
                         "model": "models/gemini-embedding-test",
                         "content": {"parts": [{"text": "second chunk"}]},
+                        "outputDimensionality": 1536,
                     },
                 ]
             },
@@ -67,6 +70,41 @@ def test_embed_batch_uses_gemini_batch_endpoint(monkeypatch):
         }
     ]
     assert "?key=" not in calls[0]["url"]
+
+
+def test_embed_uses_configured_output_dimensionality(monkeypatch):
+    calls = []
+    response = FakeResponse({"embedding": {"values": ["1", "2.5"]}})
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(
+            {
+                "url": url,
+                "json": json,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
+        return response
+
+    monkeypatch.setattr(Config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-test")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY", 1536)
+    monkeypatch.setattr("app.services.llm.gemini_provider.requests.post", fake_post)
+
+    assert GeminiProvider().embed("semantic query") == [1.0, 2.5]
+    assert response.raised_for_status
+    assert calls == [
+        {
+            "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-test:embedContent",
+            "json": {
+                "content": {"parts": [{"text": "semantic query"}]},
+                "outputDimensionality": 1536,
+            },
+            "headers": {"x-goog-api-key": "test-key"},
+            "timeout": 120,
+        }
+    ]
 
 
 def test_embed_batch_skips_api_call_for_empty_input(monkeypatch):
@@ -91,6 +129,7 @@ def test_embed_batch_retries_rate_limits(monkeypatch):
 
     monkeypatch.setattr(Config, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-test")
+    monkeypatch.setattr(Config, "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY", 1536)
     monkeypatch.setattr(Config, "GEMINI_EMBEDDING_RETRY_MAX_ATTEMPTS", 2)
     monkeypatch.setattr("app.services.llm.gemini_provider.requests.post", fake_post)
 

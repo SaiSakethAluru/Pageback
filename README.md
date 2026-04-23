@@ -220,6 +220,7 @@ and the frontend origin:
 | `BACKEND_PORT` | No | Defaults to `5050` for local development |
 | `GOOGLE_REDIRECT_URI` | No | Defaults to `http://localhost:5050/api/v1/auth/google/callback` |
 | `LLM_PROVIDER` | No | Defaults to `openai` |
+| `GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY` | No | Defaults to `1536` to match the Supabase `book_chunks.embedding vector(1536)` schema |
 | `FLASK_SECRET_KEY` | Yes | Flask app secret |
 | `FLASK_ENV` | No | Use `development` locally |
 | `FRONTEND_URL` | No | Frontend origin for redirects and CORS |

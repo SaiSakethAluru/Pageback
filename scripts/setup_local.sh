@@ -431,6 +431,7 @@ openai_api_key=""
 gemini_api_key=""
 gemini_recap_model="gemini-1.5-flash"
 gemini_embedding_model="gemini-embedding-001"
+gemini_embedding_output_dimensionality="1536"
 
 if [[ "$llm_provider" == "openai" ]]; then
   openai_api_key="$(prompt_value_with_existing "OpenAI API key" "$BACKEND_ENV_FILE" "OPENAI_API_KEY" "" true)"
@@ -440,6 +441,7 @@ if [[ "$llm_provider" == "gemini" ]]; then
   gemini_api_key="$(prompt_value_with_existing "Gemini API key" "$BACKEND_ENV_FILE" "GEMINI_API_KEY" "" true)"
   gemini_recap_model="$(prompt_optional_value_with_existing "Gemini recap model" "$BACKEND_ENV_FILE" "GEMINI_RECAP_MODEL" "gemini-1.5-flash")"
   gemini_embedding_model="$(prompt_optional_value_with_existing "Gemini embedding model" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_MODEL" "gemini-embedding-001")"
+  gemini_embedding_output_dimensionality="$(prompt_optional_value_with_existing "Gemini embedding output dimensionality" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY" "1536")"
 fi
 
 redis_url="$(prompt_optional_value_with_existing "Redis URL" "$BACKEND_ENV_FILE" "REDIS_URL" "redis://localhost:6379/0")"
@@ -471,6 +473,7 @@ OPENAI_API_KEY=$openai_api_key
 GEMINI_API_KEY=$gemini_api_key
 GEMINI_RECAP_MODEL=$gemini_recap_model
 GEMINI_EMBEDDING_MODEL=$gemini_embedding_model
+GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY=$gemini_embedding_output_dimensionality
 REDIS_URL=$redis_url
 SUPABASE_URL=$supabase_url
 SUPABASE_SERVICE_KEY=$supabase_service_key
