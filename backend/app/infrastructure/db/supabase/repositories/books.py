@@ -405,8 +405,33 @@ class SupabaseChunkRepository(ChunkRepository):
             .table(BOOK_CHUNKS_TABLE)
             .select("book_id, chapter_index, chunk_index, start_char, end_char, token_count, text")
             .eq("book_id", book_id)
-            .lte("end_char", position_char)
-            .order("end_char", desc=True)
+            .lte("start_char", position_char)
+            .order("start_char", desc=True)
+            .execute()
+        )
+        chunks = [self._map_chunk(row) for row in (response.data or [])]
+        if not chunks and position_char > 0:
+            earliest = (
+                self._client_factory()
+                .table(BOOK_CHUNKS_TABLE)
+                .select("book_id, chapter_index, chunk_index, start_char, end_char, token_count, text")
+                .eq("book_id", book_id)
+                .order("start_char", desc=False)
+                .limit(1)
+                .execute()
+            )
+            if earliest.data and int(earliest.data[0].get("start_char", 0) or 0) <= position_char:
+                chunks = [self._map_chunk(earliest.data[0])]
+        return chunks
+
+    def find_by_chapter(self, book_id: str, chapter_index: int) -> list[BookChunk]:
+        response = (
+            self._client_factory()
+            .table(BOOK_CHUNKS_TABLE)
+            .select("book_id, chapter_index, chunk_index, start_char, end_char, token_count, text")
+            .eq("book_id", book_id)
+            .eq("chapter_index", chapter_index)
+            .order("chunk_index", desc=False)
             .execute()
         )
         return [self._map_chunk(row) for row in (response.data or [])]
@@ -432,7 +457,7 @@ class SupabaseChunkRepository(ChunkRepository):
             .execute()
         )
         filtered = [
-            row for row in (response.data or []) if int(row.get("end_char", 0) or 0) <= max_char_offset
+            row for row in (response.data or []) if int(row.get("start_char", 0) or 0) <= max_char_offset
         ]
         return [self._map_chunk(row) for row in filtered]
 

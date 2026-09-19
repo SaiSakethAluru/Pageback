@@ -57,6 +57,7 @@ export default function ReaderPage() {
   });
   const [currentLevel, setCurrentLevel] = useState(0);
   const [summary, setSummary] = useState("");
+  const [recapError, setRecapError] = useState("");
   const [isRecapLoading, setIsRecapLoading] = useState(false);
   const [isRecapPanelOpen, setIsRecapPanelOpen] = useState(false);
   const [ingestion, setIngestion] = useState({
@@ -230,12 +231,15 @@ export default function ReaderPage() {
   }
 
   function handlePositionChange(cfi, charOffset) {
-    setCurrentChar(charOffset);
+    if (charOffset > 0 || readerState.atStart || (readerState.currentPage && readerState.currentPage <= 1)) {
+      setCurrentChar(charOffset);
+    }
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = window.setTimeout(() => {
-      api.savePosition(bookId, cfi, charOffset).catch(() => {});
+      const finalChar = charOffset > 0 ? charOffset : currentChar;
+      api.savePosition(bookId, cfi, finalChar).catch(() => {});
     }, 2000);
   }
 
@@ -293,10 +297,34 @@ export default function ReaderPage() {
     setIsRecapPanelOpen(true);
     setIsRecapLoading(true);
     setRecapDialogOpen(false);
+    setSummary("");
+    setRecapError("");
+
+    let targetChar = currentChar;
+    if (!targetChar || targetChar <= 0) {
+      const fromReader = readerRef.current?.getCharOffset?.();
+      if (fromReader && fromReader > 0) {
+        targetChar = fromReader;
+        setCurrentChar(targetChar);
+      } else if (
+        readerState.currentPage &&
+        readerState.currentPage > 1 &&
+        readerState.totalPages &&
+        readerState.totalPages > 1
+      ) {
+        const pagePct = (readerState.currentPage - 1) / readerState.totalPages;
+        targetChar = Math.round(pagePct * 600000);
+        setCurrentChar(targetChar);
+      }
+    }
+
+    const currentCfi = readerRef.current?.getCurrentCfi?.() || initialCfi || null;
 
     try {
-      const response = await api.getRecap(bookId, currentChar, level);
+      const response = await api.getRecap(bookId, targetChar, level, currentCfi);
       setSummary(response.summary);
+    } catch (error) {
+      setRecapError(extractErrorMessage(error));
     } finally {
       setIsRecapLoading(false);
       revealHud();
@@ -306,6 +334,7 @@ export default function ReaderPage() {
   function handleDismissRecap() {
     setCurrentLevel(0);
     setSummary("");
+    setRecapError("");
     setIsRecapPanelOpen(false);
   }
 
@@ -708,6 +737,7 @@ export default function ReaderPage() {
       {isRecapPanelOpen ? (
         <RecapPanel
           summary={summary}
+          error={recapError}
           isLoading={isRecapLoading}
           level={currentLevel}
           onDismiss={handleDismissRecap}
@@ -751,6 +781,13 @@ function getAIActionLabel(status, isStarting) {
     return "Retry";
   }
   return "Start";
+}
+
+function extractErrorMessage(error) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "The recap request failed. Check the backend server logs for details.";
 }
 
 function ChevronLeftIcon() {

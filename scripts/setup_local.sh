@@ -412,19 +412,21 @@ printf 'Secrets stay on your machine in backend/.env and are already gitignored.
 setup_menu_tool
 
 existing_llm_provider="$(get_existing_env_value "$BACKEND_ENV_FILE" "LLM_PROVIDER" || true)"
-if [[ -n "$existing_llm_provider" && "$existing_llm_provider" != "openai" && "$existing_llm_provider" != "gemini" ]]; then
+if [[ -n "$existing_llm_provider" && "$existing_llm_provider" != "openai" && "$existing_llm_provider" != "gemini" && "$existing_llm_provider" != "ollama" ]]; then
   printf 'Existing LLM provider "%s" is unsupported by setup_local.sh.\n' "$existing_llm_provider" >&2
 fi
 
-provider_prompt="LLM provider (supported: openai, gemini)"
-if [[ -n "$existing_llm_provider" && ( "$existing_llm_provider" == "openai" || "$existing_llm_provider" == "gemini" ) ]]; then
+provider_prompt="LLM provider (supported: openai, gemini, ollama)"
+if [[ -n "$existing_llm_provider" && ( "$existing_llm_provider" == "openai" || "$existing_llm_provider" == "gemini" || "$existing_llm_provider" == "ollama" ) ]]; then
   provider_prompt="$provider_prompt [current: $existing_llm_provider]"
 fi
-provider_choice="$(choose_numbered_option "$provider_prompt" "openai" "gemini")"
+provider_choice="$(choose_numbered_option "$provider_prompt" "openai" "gemini" "ollama")"
 if [[ "$provider_choice" == "1" ]]; then
   llm_provider="openai"
-else
+elif [[ "$provider_choice" == "2" ]]; then
   llm_provider="gemini"
+else
+  llm_provider="ollama"
 fi
 
 openai_api_key=""
@@ -432,6 +434,11 @@ gemini_api_key=""
 gemini_recap_model="gemini-1.5-flash"
 gemini_embedding_model="gemini-embedding-001"
 gemini_embedding_output_dimensionality="1536"
+ollama_base_url="http://127.0.0.1:11434"
+ollama_recap_model="qwen2.5:3b"
+ollama_embedding_model="qwen3-embedding:4b"
+ollama_embedding_dimensions="1536"
+ollama_embedding_max_batch_chunks="10"
 
 if [[ "$llm_provider" == "openai" ]]; then
   openai_api_key="$(prompt_value_with_existing "OpenAI API key" "$BACKEND_ENV_FILE" "OPENAI_API_KEY" "" true)"
@@ -442,6 +449,14 @@ if [[ "$llm_provider" == "gemini" ]]; then
   gemini_recap_model="$(prompt_optional_value_with_existing "Gemini recap model" "$BACKEND_ENV_FILE" "GEMINI_RECAP_MODEL" "gemini-1.5-flash")"
   gemini_embedding_model="$(prompt_optional_value_with_existing "Gemini embedding model" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_MODEL" "gemini-embedding-001")"
   gemini_embedding_output_dimensionality="$(prompt_optional_value_with_existing "Gemini embedding output dimensionality" "$BACKEND_ENV_FILE" "GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY" "1536")"
+fi
+
+if [[ "$llm_provider" == "ollama" ]]; then
+  ollama_base_url="$(prompt_optional_value_with_existing "Ollama base URL" "$BACKEND_ENV_FILE" "OLLAMA_BASE_URL" "http://127.0.0.1:11434")"
+  ollama_recap_model="$(prompt_optional_value_with_existing "Ollama recap model" "$BACKEND_ENV_FILE" "OLLAMA_RECAP_MODEL" "qwen2.5:3b")"
+  ollama_embedding_model="$(prompt_optional_value_with_existing "Ollama embedding model" "$BACKEND_ENV_FILE" "OLLAMA_EMBEDDING_MODEL" "qwen3-embedding:4b")"
+  ollama_embedding_dimensions="$(prompt_optional_value_with_existing "Ollama embedding dimensions" "$BACKEND_ENV_FILE" "OLLAMA_EMBEDDING_DIMENSIONS" "1536")"
+  ollama_embedding_max_batch_chunks="$(prompt_optional_value_with_existing "Ollama max batch chunks" "$BACKEND_ENV_FILE" "OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS" "10")"
 fi
 
 redis_url="$(prompt_optional_value_with_existing "Redis URL" "$BACKEND_ENV_FILE" "REDIS_URL" "redis://localhost:6379/0")"
@@ -474,6 +489,11 @@ GEMINI_API_KEY=$gemini_api_key
 GEMINI_RECAP_MODEL=$gemini_recap_model
 GEMINI_EMBEDDING_MODEL=$gemini_embedding_model
 GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY=$gemini_embedding_output_dimensionality
+OLLAMA_BASE_URL=$ollama_base_url
+OLLAMA_RECAP_MODEL=$ollama_recap_model
+OLLAMA_EMBEDDING_MODEL=$ollama_embedding_model
+OLLAMA_EMBEDDING_DIMENSIONS=$ollama_embedding_dimensions
+OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS=$ollama_embedding_max_batch_chunks
 REDIS_URL=$redis_url
 SUPABASE_URL=$supabase_url
 SUPABASE_SERVICE_KEY=$supabase_service_key

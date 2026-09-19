@@ -1,4 +1,4 @@
-export default function RecapPanel({ summary, isLoading, level, onDismiss }) {
+export default function RecapPanel({ summary, error, isLoading, level, onDismiss }) {
   return (
     <>
       <div style={backdropStyle} onClick={onDismiss} />
@@ -7,7 +7,9 @@ export default function RecapPanel({ summary, isLoading, level, onDismiss }) {
           X
         </button>
         <p style={{ marginTop: 0, color: "#7c7269" }}>Recap level {level}</p>
-        {isLoading ? <p>Generating recap...</p> : <p style={summaryStyle}>{summary}</p>}
+        {isLoading ? <p>Generating recap...</p> : null}
+        {!isLoading && error ? <p style={errorStyle}>{error}</p> : null}
+        {!isLoading && !error ? <p style={summaryStyle}>{summary}</p> : null}
       </section>
     </>
   );
@@ -49,5 +51,13 @@ const summaryStyle = {
   marginTop: "1.25rem",
   fontSize: "1rem",
   lineHeight: 1.7,
+  whiteSpace: "pre-wrap",
+};
+
+const errorStyle = {
+  marginTop: "1.25rem",
+  color: "#9f1239",
+  fontSize: "0.98rem",
+  lineHeight: 1.6,
   whiteSpace: "pre-wrap",
 };

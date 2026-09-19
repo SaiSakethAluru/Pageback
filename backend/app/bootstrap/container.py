@@ -19,7 +19,7 @@ from app.infrastructure.db.supabase.repositories import (
     SupabaseUsageLogRepository,
     SupabaseUserRepository,
 )
-from app.infrastructure.cache import InMemoryRecapCache
+from app.infrastructure.cache import get_recap_cache
 from app.infrastructure.llm import get_llm_gateway
 from app.infrastructure.parsers import EpubMetadataExtractor, get_parser_factory
 from app.infrastructure.storage import SupabaseBookStorage
@@ -59,13 +59,14 @@ def get_container() -> ApplicationContainer:
         parser_factory,
     )
     window_resolver = WindowResolverService(chunk_repository, llm_gateway)
+    recap_cache = get_recap_cache()
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
         book_service=book_service,
         book_lifecycle_workflow=BookLifecycleWorkflow(
             book_service,
             EpubMetadataExtractor(),
-            InMemoryRecapCache(),
+            recap_cache,
         ),
         ingestion_service=ingestion_service,
         ingestion_workflow=BookIngestionWorkflow(
@@ -74,7 +75,13 @@ def get_container() -> ApplicationContainer:
             llm_gateway,
         ),
         position_service=ReadingPositionService(position_repository),
-        recap_service=RecapService(window_resolver, InMemoryRecapCache(), llm_gateway, usage_log_repository),
+        recap_service=RecapService(
+            window_resolver,
+            recap_cache,
+            llm_gateway,
+            usage_log_repository,
+            positions=position_repository,
+        ),
         system_service=SystemInfoService(llm_gateway),
         window_resolver=window_resolver,
     )

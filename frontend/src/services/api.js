@@ -3,14 +3,24 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
   if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await response.json();
+      throw new Error(body.error || `Request failed (${response.status})`);
+    }
+
     const body = await response.text();
-    throw new Error(`Request failed (${response.status}): ${body}`);
+    throw new Error(body || `Request failed (${response.status})`);
   }
   return response.json();
 }
 
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/api/v1/auth/google/start`;
+}
+
+export function getDevLoginUrl(userId) {
+  return `${API_BASE_URL}/api/v1/auth/dev-login${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`;
 }
 
 export async function getCurrentUser() {
@@ -130,8 +140,8 @@ export async function getBookFileUrl(bookId) {
   });
 }
 
-export async function getRecap(bookId, positionChar, level) {
-  return request("/api/v1/recap", {
+export async function getRecap(bookId, positionChar, level, positionCfi = null) {
+  return request("/api/v1/recap/", {
     method: "POST",
     credentials: "include",
     headers: {
@@ -141,6 +151,7 @@ export async function getRecap(bookId, positionChar, level) {
       book_id: bookId,
       position_char: positionChar,
       level,
+      position_cfi: positionCfi,
     }),
   });
 }

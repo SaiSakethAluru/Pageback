@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, jsonify, redirect, request
 
 from app.application.errors import AuthenticationError
@@ -12,6 +14,7 @@ from config import Config
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
 
 google_provider = GoogleOAuthProvider()
+logger = logging.getLogger(__name__)
 
 
 def _frontend_url(path: str = "") -> str:
@@ -37,6 +40,7 @@ def finish_google_auth():
         user = get_container().auth_service.find_or_create_user(identity)
         login_user(user.id)
     except Exception:
+        logger.exception("Google OAuth callback failed")
         return redirect(_frontend_url("/login?error=oauth_failed"))
 
     return redirect(_frontend_url("/library"))
@@ -70,3 +74,21 @@ def get_current_user():
 def logout():
     logout_user()
     return jsonify({"success": True})
+
+
+@auth_bp.get("/dev-login")
+def dev_login():
+    if Config.FLASK_ENV != "development":
+        return error_response(AuthenticationError("Dev login is only available in development mode"))
+
+    user_id = request.args.get("user_id", "1c7d0909-e663-47c7-a44b-522a89c5ca2c")
+    user = get_container().auth_service.get_user(user_id)
+    if not user:
+        user = get_container().auth_service.get_user("b153ea33-f145-4fd6-ae81-93be8ca8f70c")
+    if not user:
+        return error_response(AuthenticationError("No development user found"))
+
+    login_user(user.id)
+    redirect_target = request.args.get("redirect", "/library")
+    return redirect(_frontend_url(redirect_target))
+

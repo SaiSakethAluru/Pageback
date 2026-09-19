@@ -29,3 +29,7 @@ class ConflictError(ApplicationError):
 
 class InfrastructureError(ApplicationError):
     status_code = 500
+
+
+class RecapUnavailableError(ApplicationError):
+    status_code = 422

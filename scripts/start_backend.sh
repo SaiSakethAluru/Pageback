@@ -78,4 +78,15 @@ if [[ "$START_CELERY_WORKER" == "true" ]]; then
   printf 'Celery worker logs: %s\n' "$CELERY_LOG_FILE"
 fi
 
+# Check Ollama status if configured as the active provider.
+CURRENT_PROVIDER="$(grep -E '^LLM_PROVIDER=' "$BACKEND_ENV_FILE" | cut -d '=' -f2- | tr -d " '\"")"
+if [[ "$CURRENT_PROVIDER" == "ollama" ]]; then
+  OLLAMA_URL="$(grep -E '^OLLAMA_BASE_URL=' "$BACKEND_ENV_FILE" | cut -d '=' -f2- | tr -d " '\"")"
+  OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
+  if ! curl -s -f -m 2 "$OLLAMA_URL/" >/dev/null 2>&1; then
+    printf '\nWarning: Could not connect to Ollama at %s\n' "$OLLAMA_URL" >&2
+    printf 'Make sure Ollama is running: brew services start ollama (or run: ollama serve)\n\n' >&2
+  fi
+fi
+
 exec "$VENV_PYTHON" run.py

@@ -11,12 +11,15 @@ class RecapRequest:
     book_id: str
     position_char: int
     level: int
+    position_cfi: str | None = None
 
 
 def parse_recap_request(payload: dict) -> RecapRequest:
     book_id = (payload.get("book_id") or "").strip()
     position_char = payload.get("position_char")
     level = payload.get("level")
+    raw_cfi = payload.get("position_cfi")
+    position_cfi = str(raw_cfi).strip() if raw_cfi else None
 
     if not book_id:
         raise ValidationError("Missing required field: book_id")
@@ -36,7 +39,12 @@ def parse_recap_request(payload: dict) -> RecapRequest:
     if resolved_level < 1 or resolved_level > 5:
         raise ValidationError("level must be an integer between 1 and 5")
 
-    return RecapRequest(book_id=book_id, position_char=resolved_position_char, level=resolved_level)
+    return RecapRequest(
+        book_id=book_id,
+        position_char=resolved_position_char,
+        level=resolved_level,
+        position_cfi=position_cfi,
+    )
 
 
 def serialize_recap_levels() -> list[dict]:

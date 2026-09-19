@@ -10,6 +10,9 @@ class ChunkRepositoryStub:
     def find_before_position(self, _book_id, _position_char):
         return self.rows
 
+    def find_by_chapter(self, _book_id, chapter_index):
+        return [r for r in self.rows if r.chapter_index == chapter_index]
+
     def search_similar(self, **kwargs):
         self.search_calls.append(kwargs)
         return self.rows
@@ -30,16 +33,17 @@ class LLMStub:
         return [[0.1, 0.2] for _ in texts]
 
 
-def test_level_one_uses_150_token_budget():
+def test_level_one_respects_token_budget():
     rows = [
-        BookChunk("book", 0, 0, 0, 100, 100, "first"),
-        BookChunk("book", 0, 1, 0, 80, 100, "second"),
+        BookChunk("book", 0, 0, 0, 100, 600, "first"),
+        BookChunk("book", 0, 1, 0, 80, 600, "second"),
     ]
     service = WindowResolverService(ChunkRepositoryStub(rows), LLMStub())
 
     result = service.resolve("book", 100, 1)
 
     assert result == "first"
+
 
 
 def test_spoiler_fence_is_respected():
@@ -75,3 +79,13 @@ def test_chunks_join_with_double_newlines():
     result = service.resolve("book", 100, 1)
 
     assert result == "alpha\n\nbeta"
+
+
+def test_resolve_char_from_cfi():
+    rows = [
+        BookChunk("book", 17, 0, 159114, 161364, 50, "chapter 17 text"),
+    ]
+    service = WindowResolverService(ChunkRepositoryStub(rows), LLMStub())
+
+    char_offset = service.resolve_char_from_cfi("book", "epubcfi(/6/34!/4/2[chapter-6]/4[chapter-6-text]/222/1:0)")
+    assert char_offset == 159114

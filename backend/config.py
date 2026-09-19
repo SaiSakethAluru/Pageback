@@ -53,19 +53,25 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     GEMINI_RECAP_MODEL = os.getenv("GEMINI_RECAP_MODEL", "gemini-1.5-flash")
     GEMINI_EMBEDDING_MODEL = _gemini_embedding_model()
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    OLLAMA_RECAP_MODEL = os.getenv("OLLAMA_RECAP_MODEL", "qwen2.5:3b")
+    OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "qwen3-embedding:4b")
+    OLLAMA_EMBEDDING_DIMENSIONS = _int_env("OLLAMA_EMBEDDING_DIMENSIONS", 1536)
+    OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS = _int_env("OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS", 10)
 
+    FLASK_ENV = os.getenv("FLASK_ENV", "development")
     FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "pageback_session")
     SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     MAX_UPLOAD_SIZE_MB = 50
-    RECAP_TOKEN_BUDGETS = [150, 400, 1200, 4000, 8000]
+    RECAP_TOKEN_BUDGETS = [1000, 2500, 6000, 12000, 20000]
     RECAP_OUTPUT_INSTRUCTIONS = [
-        "1 sentence",
-        "2-3 sentences",
-        "1 paragraph",
-        "2 paragraphs",
-        "structured summary with key events and character status",
+        "1-2 punchy sentences capturing the immediate story situation",
+        "1 concise paragraph of recent key events and character stakes",
+        "2-3 paragraphs covering the major storyline leading up to this point",
+        "a detailed multi-paragraph narrative recap of the journey so far",
+        "a structured recap with '### What Happened' followed by '### Character Status & Current Conflict'",
     ]
     CHUNK_SIZE_TOKENS = 500
     CHUNK_OVERLAP_TOKENS = 50
@@ -141,6 +147,8 @@ class Config:
             provider_required = {"OPENAI_API_KEY": cls.OPENAI_API_KEY}
         elif cls.LLM_PROVIDER == "gemini":
             provider_required = {"GEMINI_API_KEY": cls.GEMINI_API_KEY}
+        elif cls.LLM_PROVIDER == "ollama":
+            provider_required = {}
         elif cls.LLM_PROVIDER == "claude":
             # Placeholder: current code still requires OpenAI env vars for local recap tests.
             # Extend later once Claude integration is implemented.

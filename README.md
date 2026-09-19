@@ -17,7 +17,7 @@ The recap system is intentionally spoiler-fenced. The backend only retrieves chu
 - Backend: Flask
 - Database and storage: Supabase
 - Authentication: backend-owned session + Google OAuth
-- LLM and embeddings: OpenAI
+- LLM and embeddings: Gemini, OpenAI, or a local Ollama server
 
 ## Repository Layout
 
@@ -53,7 +53,7 @@ Additional app-specific documentation lives here:
 - Redis installed locally (`redis-server` on your `PATH`)
 - A Supabase project
 - A Google OAuth client
-- An OpenAI API key or a Gemini API key (depending on `LLM_PROVIDER`)
+- An OpenAI API key, Gemini API key, or local Ollama installation (depending on `LLM_PROVIDER`)
 
 The helper scripts assume these local binaries already exist:
 
@@ -219,7 +219,12 @@ and the frontend origin:
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
 | `BACKEND_PORT` | No | Defaults to `5050` for local development |
 | `GOOGLE_REDIRECT_URI` | No | Defaults to `http://localhost:5050/api/v1/auth/google/callback` |
-| `LLM_PROVIDER` | No | Defaults to `openai` |
+| `LLM_PROVIDER` | No | Defaults to `openai` (supports `openai`, `gemini`, `ollama`) |
+| `OLLAMA_BASE_URL` | Required for Ollama | Defaults to `http://127.0.0.1:11434` |
+| `OLLAMA_RECAP_MODEL` | Required for Ollama | Defaults to `qwen2.5:3b` |
+| `OLLAMA_EMBEDDING_MODEL` | Required for Ollama | Defaults to `qwen3-embedding:4b` |
+| `OLLAMA_EMBEDDING_DIMENSIONS` | Required for Ollama | Defaults to `1536`, matching the Supabase schema |
+| `OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS` | No | Defaults to `10` for responsive local batching |
 | `GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY` | No | Defaults to `1536` to match the Supabase `book_chunks.embedding vector(1536)` schema |
 | `FLASK_SECRET_KEY` | Yes | Flask app secret |
 | `FLASK_ENV` | No | Use `development` locally |

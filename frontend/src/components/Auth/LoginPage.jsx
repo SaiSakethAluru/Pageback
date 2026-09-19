@@ -40,6 +40,24 @@ export default function LoginPage() {
         <button type="button" onClick={handleLogin} style={buttonStyle}>
           Continue with Google
         </button>
+        {import.meta.env.VITE_ENV === "development" && (
+          <button
+            type="button"
+            id="dev-login-btn"
+            onClick={() => {
+              window.location.href = api.getDevLoginUrl();
+            }}
+            style={{
+              ...buttonStyle,
+              marginTop: "0.75rem",
+              background: "#2f4858",
+              cursor: "pointer",
+            }}
+          >
+            Dev Login (Local Development)
+          </button>
+        )}
+
         {error ? <p style={errorStyle}>{error}</p> : null}
       </div>
     </div>

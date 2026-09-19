@@ -1,4 +1,7 @@
+import pytest
+
 from app.application.auth.service import AuthApplicationService
+from app.application.errors import RecapUnavailableError
 from app.application.books.ingestion_service import BookIngestionService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
@@ -297,6 +300,9 @@ class ChunkRepoStub:
     def find_before_position(self, book_id: str, position_char: int):
         return self.before
 
+    def find_by_chapter(self, book_id: str, chapter_index: int):
+        return [c for c in self.before if c.chapter_index == chapter_index]
+
     def search_similar(self, **kwargs):
         return self.similar
 
@@ -351,6 +357,17 @@ class LLMStub:
 
 class GeminiLLMStub(LLMStub):
     provider_name = "gemini"
+
+    def __init__(self):
+        self.embed_batch_calls = []
+
+    def embed_batch(self, texts: list[str]):
+        self.embed_batch_calls.append(texts)
+        return [[0.1, 0.2] for _ in texts]
+
+
+class OllamaLLMStub(LLMStub):
+    provider_name = "ollama"
 
     def __init__(self):
         self.embed_batch_calls = []
@@ -461,6 +478,16 @@ def test_recap_service_generates_summary_and_logs_usage():
     assert usage_logs.calls
 
 
+def test_recap_service_raises_when_no_context_is_available():
+    resolver = WindowResolverService(ChunkRepoStub([]), LLMStub())
+    cache = CacheStub()
+    usage_logs = UsageLogStub()
+    service = RecapService(resolver, cache, LLMStub(), usage_logs)
+
+    with pytest.raises(RecapUnavailableError):
+        service.generate("u1", "b1", 0, 1)
+
+
 def test_ingestion_workflow_enqueues_background_job_and_updates_status():
     books = BookRepoStub()
     storage = StorageStub()
@@ -557,6 +584,23 @@ def test_gemini_ingestion_batches_use_conservative_chunk_limit(monkeypatch):
     monkeypatch.setattr(Config, "GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS", 5000)
     monkeypatch.setattr(service, "_sleep_for_embedding_rate_limit", lambda *_args, **_kwargs: None)
 
+    service._embed_chunks(None, "book-1", source_chunks)
+
+    assert [len(call) for call in llm.embed_batch_calls] == [10, 10, 5]
+
+
+def test_ollama_ingestion_batches_use_configured_limit(monkeypatch):
+    books = BookRepoStub()
+    storage = StorageStub()
+    chunks_repo = ChunkRepoStub()
+    llm = OllamaLLMStub()
+    service = BookIngestionService(books, storage, chunks_repo, llm, None)
+    source_chunks = [
+        BookChunk("book-1", 0, index, index * 10, index * 10 + 10, 5, f"chunk-{index}")
+        for index in range(25)
+    ]
+
+    monkeypatch.setattr(Config, "OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS", 10)
     service._embed_chunks(None, "book-1", source_chunks)
 
     assert [len(call) for call in llm.embed_batch_calls] == [10, 10, 5]

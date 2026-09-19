@@ -9,3 +9,5 @@ dist/
 .vscode/
 *.rdb
 .logs/
+backend/tests/fixtures/*.epub
+!backend/tests/fixtures/sample.epub

@@ -234,6 +234,9 @@ class BookIngestionService:
         if self._llm.provider_name == "gemini":
             max_chunks = max(1, Config.GEMINI_EMBEDDING_MAX_BATCH_CHUNKS)
             max_tokens = max(1, Config.GEMINI_EMBEDDING_MAX_BATCH_INPUT_TOKENS)
+        elif self._llm.provider_name == "ollama":
+            max_chunks = max(1, Config.OLLAMA_EMBEDDING_MAX_BATCH_CHUNKS)
+            max_tokens = 10**12
         else:
             max_chunks = 100
             max_tokens = 10**12

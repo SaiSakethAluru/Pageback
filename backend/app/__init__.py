@@ -23,7 +23,13 @@ def create_app() -> Flask:
         SESSION_COOKIE_SECURE=Config.SESSION_COOKIE_SECURE,
     )
 
+    app.url_map.strict_slashes = False
+
     allowed_origins = [Config.FRONTEND_URL]
+    if "localhost" in Config.FRONTEND_URL:
+        allowed_origins.append(Config.FRONTEND_URL.replace("localhost", "127.0.0.1"))
+    elif "127.0.0.1" in Config.FRONTEND_URL:
+        allowed_origins.append(Config.FRONTEND_URL.replace("127.0.0.1", "localhost"))
 
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}}, supports_credentials=True)
 

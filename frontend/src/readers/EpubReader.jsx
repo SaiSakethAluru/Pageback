@@ -24,6 +24,7 @@ const EpubReader = forwardRef(function EpubReader(
   const onLoadingChangeRef = useRef(onLoadingChange);
   const onReadyChangeRef = useRef(onReadyChange);
   const locationsReadyRef = useRef(false);
+  const calculatePositionInfoRef = useRef(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -69,6 +70,71 @@ const EpubReader = forwardRef(function EpubReader(
     let handleContentKeyDown = null;
 
     const layoutConfig = getLayoutConfig(layoutMode);
+
+    function calculatePositionInfo(location) {
+      if (!location || !bookRef.current) {
+        return { cfi: latestCfiRef.current ?? initialCfi ?? null, charOffset: 0, percentage: 0 };
+      }
+
+      const cfi = location.start?.cfi ?? latestCfiRef.current ?? initialCfi ?? null;
+      const totalLocations =
+        typeof bookRef.current.locations?.length === "function" ? bookRef.current.locations.length() : 0;
+
+      let percentage = null;
+      // 1. Try epub.js locations if ready
+      if (totalLocations > 0 && locationsReadyRef.current) {
+        const locPct = bookRef.current.locations.percentageFromCfi?.(cfi);
+        if (typeof locPct === "number" && Number.isFinite(locPct) && locPct >= 0) {
+          percentage = locPct;
+        } else if (
+          typeof location.start?.percentage === "number" &&
+          Number.isFinite(location.start.percentage) &&
+          location.start.percentage >= 0
+        ) {
+          percentage = location.start.percentage;
+        }
+      }
+
+      // 2. Fallback to pageList if available
+      if (percentage === null) {
+        const mappedPage = bookRef.current.pageList?.pageFromCfi?.(cfi) ?? -1;
+        const lastPage =
+          bookRef.current.pageList?.lastPage ||
+          (bookRef.current.pageList?.pages?.length > 0 ? bookRef.current.pageList.pages.length : 0);
+        if (mappedPage > 0 && lastPage > 0) {
+          percentage = Math.max(0, Math.min(1, (mappedPage - 1) / lastPage));
+        }
+      }
+
+      // 3. Fallback to spine index
+      if (percentage === null) {
+        let spineIndex = typeof location.start?.index === "number" ? location.start.index : null;
+        if (spineIndex === null && cfi) {
+          const match = cfi.match(/\/6\/(\d+)!/);
+          if (match) {
+            spineIndex = Math.floor(parseInt(match[1], 10) / 2);
+          }
+        }
+        const totalSpine = bookRef.current.spine?.length || 1;
+        if (spineIndex != null && spineIndex >= 0 && totalSpine > 0) {
+          percentage = Math.max(0, Math.min(1, spineIndex / totalSpine));
+        }
+      }
+
+      if (percentage === null || !Number.isFinite(percentage)) {
+        percentage = 0;
+      }
+
+      const totalEstimatedChars =
+        totalLocations > 0
+          ? totalLocations * 1650
+          : (bookRef.current.spine?.length || 40) * 14000;
+
+      const charOffset = Math.max(0, Math.round(percentage * totalEstimatedChars));
+      return { cfi, charOffset, percentage };
+    }
+
+    calculatePositionInfoRef.current = calculatePositionInfo;
 
     function emitReaderState(location) {
       if (!location || !bookRef.current) {
@@ -182,12 +248,10 @@ const EpubReader = forwardRef(function EpubReader(
         });
 
         handleRelocated = (location) => {
-          const cfi = location?.start?.cfi ?? null;
-          latestCfiRef.current = cfi;
-          const percentage = book.locations?.percentageFromCfi?.(cfi) ?? 0;
-          const totalLocations =
-            typeof book.locations?.length === "function" ? book.locations.length() : 0;
-          const charOffset = Math.max(0, Math.round(percentage * Math.max(1, totalLocations) * 1200));
+          const { cfi, charOffset } = calculatePositionInfo(location);
+          if (cfi) {
+            latestCfiRef.current = cfi;
+          }
           onPositionChangeRef.current?.(cfi, charOffset);
           emitReaderState(location);
         };
@@ -212,7 +276,15 @@ const EpubReader = forwardRef(function EpubReader(
               return;
             }
             locationsReadyRef.current = true;
-            emitReaderState(rendition.currentLocation());
+            const currLoc = rendition.currentLocation();
+            if (currLoc) {
+              const { cfi, charOffset } = calculatePositionInfo(currLoc);
+              if (cfi && charOffset > 0) {
+                latestCfiRef.current = cfi;
+                onPositionChangeRef.current?.(cfi, charOffset);
+              }
+              emitReaderState(currLoc);
+            }
           })
           .catch(() => {
             // If locations fail to generate we keep the book readable and omit absolute page counts.
@@ -250,6 +322,10 @@ const EpubReader = forwardRef(function EpubReader(
   useImperativeHandle(ref, () => ({
     getCurrentCfi() {
       return latestCfiRef.current;
+    },
+    getCharOffset() {
+      const currLoc = renditionRef.current?.currentLocation();
+      return calculatePositionInfoRef.current ? calculatePositionInfoRef.current(currLoc).charOffset : 0;
     },
     next() {
       return renditionRef.current?.next();

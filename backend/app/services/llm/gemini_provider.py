@@ -16,9 +16,18 @@ class GeminiProvider(BaseLLMProvider):
     def recap(self, text_window: str, level: int) -> str:
         output_instruction = Config.RECAP_OUTPUT_INSTRUCTIONS[level - 1]
         system_prompt = (
-            "You are a reading assistant. Recap only from the provided text. "
-            "Do not use outside knowledge. Write in prose, in past tense, "
-            "and stay factual and specific."
+            "You are a story recap assistant. Your task is to provide an engaging, immersive "
+            "'Previously on...' recap to refresh the reader on the story so far, "
+            "leading directly into where they are currently reading.\n\n"
+            "STRICT RULES:\n"
+            "1. IN-UNIVERSE NARRATIVE: Write in past-tense narrative prose. Recount the events directly as they happened "
+            "in the story, focusing on characters, actions, revelations, and conflicts.\n"
+            "2. NO META-LANGUAGE: NEVER refer to the book, writing, or author. DO NOT say 'the text describes', "
+            "'the author writes', 'the excerpt shows', 'this chapter', 'the narrative recounts', 'the passage mentions', "
+            "or refer to the author. Jump straight into the story events.\n"
+            "3. IGNORE NON-STORY ELEMENTS: Completely ignore any table of contents, publisher notices, copyright info, "
+            "exercise questions, dedications, preface notes, or allergen warnings. Focus purely on narrative plot events.\n"
+            "4. ACCURACY: Stay strictly faithful to what occurred in the provided excerpts without making up outside facts."
         )
 
         url = self._model_url(Config.GEMINI_RECAP_MODEL, "generateContent")
@@ -32,8 +41,10 @@ class GeminiProvider(BaseLLMProvider):
                         {
                             "text": (
                                 f"{system_prompt}\n\n"
-                                f"Write a recap in {output_instruction} based only on this text:\n\n"
-                                f"{text_window}"
+                                f"Write an immersive story recap ({output_instruction}) covering the events that took place:\n\n"
+                                f"--- STORY EXCERPTS ---\n"
+                                f"{text_window}\n"
+                                f"--- END OF EXCERPTS ---"
                             )
                         }
                     ],

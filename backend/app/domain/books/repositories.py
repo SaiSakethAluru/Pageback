@@ -114,6 +114,10 @@ class ChunkRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def find_by_chapter(self, book_id: str, chapter_index: int) -> list[BookChunk]:
+        raise NotImplementedError
+
+    @abstractmethod
     def search_similar(
         self,
         book_id: str,
