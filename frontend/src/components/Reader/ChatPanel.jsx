@@ -15,12 +15,43 @@ export default function ChatPanel({
   isOpen,
   onClose,
 }) {
-  const [messages, setMessages] = useState([]);
+  const storageKey = `pageback_chat_${bookId}`;
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {
+      // ignore storage errors
+    }
+  }, [messages, storageKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        onClose?.();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -74,6 +105,11 @@ export default function ChatPanel({
   function handleClear() {
     setMessages([]);
     setError("");
+    try {
+      sessionStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
   }
 
   return (
@@ -82,6 +118,12 @@ export default function ChatPanel({
       role="complementary"
       aria-label="Book discussion side chat"
     >
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
       <div style={headerStyle}>
         <div>
           <div style={titleRowStyle}>

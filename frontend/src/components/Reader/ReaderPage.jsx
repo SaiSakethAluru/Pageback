@@ -342,6 +342,7 @@ export default function ReaderPage() {
 
     setCurrentLevel(level);
     setIsRecapPanelOpen(true);
+    setIsChatPanelOpen(false);
     setIsRecapLoading(true);
     setRecapDialogOpen(false);
     setSummary("");
