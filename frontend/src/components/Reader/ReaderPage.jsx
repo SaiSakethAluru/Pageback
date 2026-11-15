@@ -7,6 +7,7 @@ import PdfReader from "../../readers/PdfReader";
 import * as api from "../../services/api";
 import RecapLevelIndicator from "./RecapLevelIndicator";
 import RecapPanel from "./RecapPanel";
+import ChatPanel from "./ChatPanel";
 import TextSelectionToolbar from "./TextSelectionToolbar";
 import WordLookupModal from "./WordLookupModal";
 import ContextualLookupModal from "./ContextualLookupModal";
@@ -63,6 +64,7 @@ export default function ReaderPage() {
   const [recapError, setRecapError] = useState("");
   const [isRecapLoading, setIsRecapLoading] = useState(false);
   const [isRecapPanelOpen, setIsRecapPanelOpen] = useState(false);
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
   const [selectedTextInfo, setSelectedTextInfo] = useState(null);
   const [lookupWord, setLookupWord] = useState(null);
   const [lookupPosition, setLookupPosition] = useState(null);
@@ -152,7 +154,7 @@ export default function ReaderPage() {
       return;
     }
 
-    if (aiDialogOpen || recapDialogOpen || fontDialogOpen || layoutDialogOpen || isRecapPanelOpen) {
+    if (aiDialogOpen || recapDialogOpen || fontDialogOpen || layoutDialogOpen || isRecapPanelOpen || isChatPanelOpen) {
       setHudVisible(true);
       if (hudTimerRef.current) {
         window.clearTimeout(hudTimerRef.current);
@@ -172,7 +174,7 @@ export default function ReaderPage() {
         window.clearTimeout(hudTimerRef.current);
       }
     };
-  }, [aiDialogOpen, fontDialogOpen, isReaderReady, isRecapPanelOpen, layoutDialogOpen, recapDialogOpen, readerState.currentPage]);
+  }, [aiDialogOpen, fontDialogOpen, isChatPanelOpen, isReaderReady, isRecapPanelOpen, layoutDialogOpen, recapDialogOpen, readerState.currentPage]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -561,6 +563,24 @@ export default function ReaderPage() {
               type="button"
               onClick={() => {
                 closeTransientPanels();
+                if (isRecapPanelOpen) setIsRecapPanelOpen(false);
+                setIsChatPanelOpen((open) => !open);
+              }}
+              style={{
+                ...iconButtonStyle,
+                ...(isAIComplete ? null : disabledIconButtonStyle),
+                ...(isChatPanelOpen ? selectedOptionButtonStyle : null),
+              }}
+              disabled={!isAIComplete}
+              aria-label="Open discussion chat"
+              title="Chat about book (Spoiler-safe)"
+            >
+              <ChatIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                closeTransientPanels();
                 setAIDialogOpen((open) => !open);
               }}
               style={iconButtonStyle}
@@ -791,6 +811,16 @@ export default function ReaderPage() {
         />
       ) : null}
 
+      {isChatPanelOpen ? (
+        <ChatPanel
+          bookId={bookId}
+          positionChar={currentChar}
+          positionCfi={readerRef.current?.getCurrentCfi?.() || initialCfi}
+          isOpen={isChatPanelOpen}
+          onClose={() => setIsChatPanelOpen(false)}
+        />
+      ) : null}
+
       {!lookupWord && !contextualTerm && selectedTextInfo ? (
         <TextSelectionToolbar
           selectedText={selectedTextInfo.text}
@@ -898,6 +928,20 @@ function BrainIcon() {
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
       <path d="M9 7.2a3 3 0 0 1 5-2.2A3.2 3.2 0 0 1 18.8 8a3.4 3.4 0 0 1-.1 5.8A3.2 3.2 0 0 1 16 19H9.7A3.7 3.7 0 0 1 6 15.3V10a2.8 2.8 0 0 1 3-2.8Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 6.3v10.4M9.6 10h2.3M12 13.5h2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

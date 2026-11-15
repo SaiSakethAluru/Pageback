@@ -177,3 +177,19 @@ export async function lookupContextual(bookId, term, positionChar = 0, positionC
     }),
   });
 }
+
+export async function sendChatMessage(bookId, messages, positionChar = 0, positionCfi = null) {
+  return request("/api/v1/recap/chat", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      book_id: bookId,
+      messages,
+      position_char: positionChar,
+      position_cfi: positionCfi,
+    }),
+  });
+}
