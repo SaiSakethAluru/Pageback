@@ -9,6 +9,7 @@ import RecapLevelIndicator from "./RecapLevelIndicator";
 import RecapPanel from "./RecapPanel";
 import TextSelectionToolbar from "./TextSelectionToolbar";
 import WordLookupModal from "./WordLookupModal";
+import ContextualLookupModal from "./ContextualLookupModal";
 
 const ORIENTATION_OPTIONS = [
   { value: "horizontal-spread", label: "Horizontal 2-page" },
@@ -65,6 +66,7 @@ export default function ReaderPage() {
   const [selectedTextInfo, setSelectedTextInfo] = useState(null);
   const [lookupWord, setLookupWord] = useState(null);
   const [lookupPosition, setLookupPosition] = useState(null);
+  const [contextualTerm, setContextualTerm] = useState(null);
   const [ingestion, setIngestion] = useState({
     status: "ready",
     progress: null,
@@ -274,6 +276,15 @@ export default function ReaderPage() {
     if (word) {
       setLookupWord(word);
       setLookupPosition(pos);
+    }
+  }
+
+  function handleContextualLookup(term) {
+    const target = term || selectedTextInfo?.text;
+    setSelectedTextInfo(null);
+    setLookupWord(null);
+    if (target) {
+      setContextualTerm(target);
     }
   }
 
@@ -780,11 +791,12 @@ export default function ReaderPage() {
         />
       ) : null}
 
-      {!lookupWord && selectedTextInfo ? (
+      {!lookupWord && !contextualTerm && selectedTextInfo ? (
         <TextSelectionToolbar
           selectedText={selectedTextInfo.text}
           rect={selectedTextInfo.rect}
           onDefine={handleDefine}
+          onContextualLookup={handleContextualLookup}
           onClear={handleClearSelection}
         />
       ) : null}
@@ -793,11 +805,21 @@ export default function ReaderPage() {
         word={lookupWord}
         isOpen={Boolean(lookupWord)}
         position={lookupPosition}
+        onContextualLookup={handleContextualLookup}
         onClose={() => {
           setLookupWord(null);
           setLookupPosition(null);
           setSelectedTextInfo(null);
         }}
+      />
+
+      <ContextualLookupModal
+        bookId={bookId}
+        term={contextualTerm}
+        positionChar={currentChar}
+        positionCfi={readerRef.current?.getCurrentCfi?.() || initialCfi}
+        isOpen={Boolean(contextualTerm)}
+        onClose={() => setContextualTerm(null)}
       />
     </div>
   );

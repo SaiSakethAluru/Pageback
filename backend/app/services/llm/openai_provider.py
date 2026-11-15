@@ -37,6 +37,17 @@ class OpenAIProvider(BaseLLMProvider):
         )
         return response.choices[0].message.content or ""
 
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        response = self.client.chat.completions.create(
+            model=self.recap_model,
+            messages=messages,
+        )
+        return (response.choices[0].message.content or "").strip()
+
     def embed(self, text: str) -> list[float]:
         response = self.client.embeddings.create(model=self.embedding_model, input=text)
         return response.data[0].embedding
