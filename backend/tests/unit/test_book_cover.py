@@ -91,3 +91,20 @@ def test_update_book_cover_not_found():
     )
 
     assert signed_url is None
+
+
+def test_is_safe_public_url():
+    from app.routes.books import _is_safe_public_url
+
+    assert _is_safe_public_url("https://covers.openlibrary.org/b/id/11481354-L.jpg") is True
+    assert _is_safe_public_url("http://example.com/cover.png") is True
+
+    # Disallowed: private IP, loopback, file scheme
+    assert _is_safe_public_url("file:///etc/passwd") is False
+    assert _is_safe_public_url("http://localhost:5000/secret") is False
+    assert _is_safe_public_url("http://127.0.0.1/admin") is False
+    assert _is_safe_public_url("http://169.254.169.254/latest/meta-data") is False
+    assert _is_safe_public_url("http://10.0.0.1/internal") is False
+    assert _is_safe_public_url("http://192.168.1.1/router") is False
+    assert _is_safe_public_url("javascript:alert(1)") is False
+    assert _is_safe_public_url("") is False

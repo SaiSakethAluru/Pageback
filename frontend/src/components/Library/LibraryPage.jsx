@@ -591,7 +591,7 @@ const tableContainerStyle = {
   borderRadius: "18px",
   border: "1px solid rgba(115, 98, 74, 0.16)",
   boxShadow: "0 4px 20px rgba(0, 0, 0, 0.04)",
-  overflow: "hidden",
+  overflowX: "auto",
 };
 
 const tableStyle = {

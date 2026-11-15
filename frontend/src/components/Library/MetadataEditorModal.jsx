@@ -17,10 +17,34 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
   const [onlineSearchMessage, setOnlineSearchMessage] = useState("");
 
   const fileInputRef = useRef(null);
+  const previewUrlRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleEscape(e) {
+      if (e.key === "Escape" && !isSaving) {
+        onClose?.();
+      }
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, isSaving, onClose]);
 
   useEffect(() => {
     if (!isOpen || !book) {
       return;
+    }
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
     }
     setTitle(book.title || "");
     setAuthor(book.author || "");
@@ -40,9 +64,13 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
   function handleFileSelected(event) {
     const file = event.target.files?.[0];
     if (file) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
       setNewCoverFile(file);
       setPendingOnlineCoverUrl(null);
       const preview = URL.createObjectURL(file);
+      previewUrlRef.current = preview;
       setCoverUrl(preview);
     }
   }
@@ -327,7 +355,7 @@ const closeButtonStyle = {
 
 const contentStyle = {
   display: "grid",
-  gridTemplateColumns: "260px minmax(0, 1fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
   gap: "1.5rem",
   padding: "1.5rem 1.75rem 1.75rem",
 };

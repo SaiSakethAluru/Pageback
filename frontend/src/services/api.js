@@ -237,7 +237,10 @@ export async function fetchOnlineBookMetadata(title, author = "") {
     author: Array.isArray(doc.author_name) ? doc.author_name.join(", ") : doc.author_name || "",
     firstPublishYear: doc.first_publish_year || null,
     publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher || null,
-    coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
+    coverUrl:
+      doc.cover_i && Number(doc.cover_i) > 0
+        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+        : null,
     isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
   }));
 }
