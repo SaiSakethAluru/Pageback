@@ -193,3 +193,51 @@ export async function sendChatMessage(bookId, messages, positionChar = 0, positi
     }),
   });
 }
+
+export async function uploadBookCover(bookId, file) {
+  const formData = new FormData();
+  formData.append("cover", file);
+  return request(`/api/v1/books/${bookId}/cover`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+}
+
+export async function updateBookCoverFromUrl(bookId, coverUrl) {
+  return request(`/api/v1/books/${bookId}/cover-from-url`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ cover_url: coverUrl }),
+  });
+}
+
+export async function fetchOnlineBookMetadata(title, author = "") {
+  let query = "";
+  if (title && author) {
+    query = `title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+  } else if (title) {
+    query = `q=${encodeURIComponent(title)}`;
+  } else {
+    throw new Error("Title is required to search metadata");
+  }
+
+  const response = await fetch(`https://openlibrary.org/search.json?${query}&limit=5`);
+  if (!response.ok) {
+    throw new Error(`Failed to search OpenLibrary (${response.status})`);
+  }
+  const data = await response.json();
+  const docs = data.docs || [];
+
+  return docs.map((doc) => ({
+    title: doc.title,
+    author: Array.isArray(doc.author_name) ? doc.author_name.join(", ") : doc.author_name || "",
+    firstPublishYear: doc.first_publish_year || null,
+    publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher || null,
+    coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
+    isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
+  }));
+}

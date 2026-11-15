@@ -16,7 +16,18 @@ export default function LibraryPage() {
   const [editingBook, setEditingBook] = useState(null);
   const [deletingBook, setDeletingBook] = useState(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState(
+    () => localStorage.getItem("pageback_library_view_mode") || "grid"
+  );
   const profileMenuRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("pageback_library_view_mode", viewMode);
+    } catch {
+      // ignore
+    }
+  }, [viewMode]);
 
   async function loadBooks() {
     setLoading(true);
@@ -68,6 +79,7 @@ export default function LibraryPage() {
               ...book,
               title: updatedMetadata.title ?? null,
               author: updatedMetadata.author ?? null,
+              cover_url: updatedMetadata.cover_url ?? book.cover_url,
             }
           : book
       )
@@ -131,9 +143,47 @@ export default function LibraryPage() {
       </header>
 
       <main>
-        {loading ? <p>Loading books...</p> : null}
+        <div style={toolbarStyle}>
+          <div>
+            <h1 style={pageTitleStyle}>My Library</h1>
+            <p style={pageSubtitleStyle}>
+              {books.length} book{books.length === 1 ? "" : "s"} in your collection
+            </p>
+          </div>
 
-        {!loading ? (
+          <div style={toolbarActionsStyle}>
+            <div style={viewToggleWrapStyle} role="radiogroup" aria-label="Library display mode">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                style={{
+                  ...viewToggleButtonStyle,
+                  ...(viewMode === "grid" ? activeViewToggleButtonStyle : null),
+                }}
+                aria-label="Grid view"
+                title="Apple Books Grid View"
+              >
+                ▦ Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                style={{
+                  ...viewToggleButtonStyle,
+                  ...(viewMode === "list" ? activeViewToggleButtonStyle : null),
+                }}
+                aria-label="Calibre list view"
+                title="Calibre Table View"
+              >
+                ☰ Calibre List
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {loading ? <p style={loadingStateStyle}>Loading books...</p> : null}
+
+        {!loading && viewMode === "grid" ? (
           <div style={gridStyle}>
             {books.map((book) => (
               <BookCard
@@ -144,6 +194,110 @@ export default function LibraryPage() {
               />
             ))}
             <AddBookCard onUploadComplete={loadBooks} />
+          </div>
+        ) : null}
+
+        {!loading && viewMode === "list" ? (
+          <div style={tableContainerStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr style={tableHeadRowStyle}>
+                  <th style={thStyle}>Cover</th>
+                  <th style={{ ...thStyle, textAlign: "left" }}>Title & Author</th>
+                  <th style={thStyle}>Format</th>
+                  <th style={thStyle}>AI Status</th>
+                  <th style={thStyle}>Added</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {books.map((book) => (
+                  <tr key={book.id} style={tableRowStyle}>
+                    <td style={tdCoverStyle}>
+                      <Link to={`/reader/${book.id}`} style={coverLinkStyle}>
+                        {book.cover_url ? (
+                          <img src={book.cover_url} alt="" style={tableCoverImgStyle} />
+                        ) : (
+                          <div style={tableCoverFallbackStyle}>
+                            {getInitials(book.title)}
+                          </div>
+                        )}
+                      </Link>
+                    </td>
+                    <td style={tdMainStyle}>
+                      <Link to={`/reader/${book.id}`} style={bookTitleLinkStyle}>
+                        {book.title || "Untitled"}
+                      </Link>
+                      <span style={bookAuthorSpanStyle}>
+                        {book.author || "Unknown author"}
+                      </span>
+                    </td>
+                    <td style={tdCenterStyle}>
+                      <span style={formatBadgeStyle}>EPUB</span>
+                    </td>
+                    <td style={tdCenterStyle}>
+                      <span
+                        style={{
+                          ...statusBadgeStyle,
+                          background:
+                            book.ingestion_status === "complete"
+                              ? "#e4efe7"
+                              : book.ingestion_status === "processing"
+                              ? "#fff3dc"
+                              : "#f0ece4",
+                          color:
+                            book.ingestion_status === "complete"
+                              ? "#2b5e3b"
+                              : book.ingestion_status === "processing"
+                              ? "#875a13"
+                              : "#695e52",
+                        }}
+                      >
+                        {book.ingestion_status === "complete"
+                          ? "✓ AI Ready"
+                          : book.ingestion_status === "processing"
+                          ? "⏳ Processing"
+                          : "Ready"}
+                      </span>
+                    </td>
+                    <td style={tdCenterStyle}>
+                      <span style={dateSpanStyle}>
+                        {book.created_at
+                          ? new Date(book.created_at).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </span>
+                    </td>
+                    <td style={tdActionsStyle}>
+                      <Link to={`/reader/${book.id}`} style={actionReadBtnStyle}>
+                        Read
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setEditingBook(book)}
+                        style={actionIconBtnStyle}
+                        title="Edit metadata & cover"
+                        aria-label="Edit metadata"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingBook(book)}
+                        style={actionIconBtnStyle}
+                        title="Delete book"
+                        aria-label="Delete book"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : null}
       </main>
@@ -359,4 +513,217 @@ const gridStyle = {
   gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
   gap: "1.35rem",
   padding: "0 2rem",
+};
+
+function getInitials(title) {
+  const words = (title || "Book")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  return words.map((word) => word[0]?.toUpperCase() || "").join("") || "BK";
+}
+
+const toolbarStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  padding: "0 2rem 1.5rem",
+  flexWrap: "wrap",
+  gap: "1rem",
+};
+
+const pageTitleStyle = {
+  margin: 0,
+  fontSize: "2rem",
+  fontFamily: "Georgia, serif",
+  color: "#201a14",
+  fontWeight: 700,
+};
+
+const pageSubtitleStyle = {
+  margin: "0.25rem 0 0",
+  fontSize: "0.9rem",
+  color: "#74695d",
+};
+
+const toolbarActionsStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+};
+
+const viewToggleWrapStyle = {
+  display: "flex",
+  background: "#e8ded2",
+  padding: "3px",
+  borderRadius: "12px",
+  gap: "2px",
+};
+
+const viewToggleButtonStyle = {
+  border: "none",
+  background: "transparent",
+  color: "#6b5d4f",
+  padding: "0.45rem 0.85rem",
+  borderRadius: "9px",
+  fontSize: "0.82rem",
+  fontWeight: 600,
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+};
+
+const activeViewToggleButtonStyle = {
+  background: "#ffffff",
+  color: "#241e17",
+  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+};
+
+const loadingStateStyle = {
+  padding: "2rem",
+  textAlign: "center",
+  color: "#74695d",
+};
+
+const tableContainerStyle = {
+  margin: "0 2rem",
+  background: "#ffffff",
+  borderRadius: "18px",
+  border: "1px solid rgba(115, 98, 74, 0.16)",
+  boxShadow: "0 4px 20px rgba(0, 0, 0, 0.04)",
+  overflow: "hidden",
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: "0.92rem",
+  color: "#282119",
+};
+
+const tableHeadRowStyle = {
+  background: "#f8f4ee",
+  borderBottom: "1px solid rgba(115, 98, 74, 0.14)",
+};
+
+const thStyle = {
+  padding: "0.85rem 1rem",
+  fontSize: "0.75rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "#7e6c5a",
+  fontWeight: 700,
+  textAlign: "center",
+};
+
+const tableRowStyle = {
+  borderBottom: "1px solid rgba(115, 98, 74, 0.08)",
+  transition: "background 0.1s ease",
+};
+
+const tdCoverStyle = {
+  padding: "0.6rem 1rem",
+  width: "56px",
+};
+
+const coverLinkStyle = {
+  display: "block",
+  textDecoration: "none",
+};
+
+const tableCoverImgStyle = {
+  width: "38px",
+  height: "52px",
+  objectFit: "cover",
+  borderRadius: "6px",
+  boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+  display: "block",
+};
+
+const tableCoverFallbackStyle = {
+  width: "38px",
+  height: "52px",
+  borderRadius: "6px",
+  background: "linear-gradient(135deg, #c9a779, #6d4a2d)",
+  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "0.75rem",
+  fontWeight: 700,
+};
+
+const tdMainStyle = {
+  padding: "0.6rem 1rem",
+};
+
+const bookTitleLinkStyle = {
+  display: "block",
+  fontSize: "1rem",
+  fontWeight: 700,
+  color: "#1e1710",
+  textDecoration: "none",
+  marginBottom: "0.15rem",
+};
+
+const bookAuthorSpanStyle = {
+  display: "block",
+  fontSize: "0.85rem",
+  color: "#74695d",
+  fontStyle: "italic",
+};
+
+const tdCenterStyle = {
+  padding: "0.6rem 1rem",
+  textAlign: "center",
+};
+
+const formatBadgeStyle = {
+  fontSize: "0.72rem",
+  fontWeight: 700,
+  color: "#4e4336",
+  background: "#ece5d8",
+  padding: "0.2rem 0.5rem",
+  borderRadius: "6px",
+};
+
+const statusBadgeStyle = {
+  fontSize: "0.74rem",
+  fontWeight: 600,
+  padding: "0.2rem 0.6rem",
+  borderRadius: "8px",
+  display: "inline-block",
+};
+
+const dateSpanStyle = {
+  fontSize: "0.82rem",
+  color: "#7e7468",
+};
+
+const tdActionsStyle = {
+  padding: "0.6rem 1rem",
+  textAlign: "right",
+  whiteSpace: "nowrap",
+};
+
+const actionReadBtnStyle = {
+  background: "#1c323f",
+  color: "#ffffff",
+  textDecoration: "none",
+  padding: "0.35rem 0.85rem",
+  borderRadius: "8px",
+  fontSize: "0.8rem",
+  fontWeight: 600,
+  marginRight: "0.5rem",
+  display: "inline-block",
+};
+
+const actionIconBtnStyle = {
+  background: "transparent",
+  border: "1px solid rgba(115, 98, 74, 0.2)",
+  borderRadius: "8px",
+  padding: "0.3rem 0.5rem",
+  fontSize: "0.85rem",
+  cursor: "pointer",
+  marginLeft: "0.35rem",
 };

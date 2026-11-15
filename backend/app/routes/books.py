@@ -1,10 +1,10 @@
 from dataclasses import asdict
 
 import logging
-
+import requests
 from flask import Blueprint, jsonify, request
 
-from app.application.errors import InfrastructureError, NotFoundError
+from app.application.errors import InfrastructureError, NotFoundError, ValidationError
 from app.auth import current_user_id, require_auth
 from app.bootstrap import get_container
 from app.interfaces.http.errors import error_response
@@ -187,3 +187,47 @@ def get_book_file_url(book_id: str):
     if not signed_url:
         return error_response(NotFoundError("Book not found"))
     return jsonify({"signed_url": signed_url})
+
+
+@books_bp.post("/<book_id>/cover")
+@require_auth
+def upload_book_cover(book_id: str):
+    user_id = current_user_id()
+    if "cover" not in request.files and "file" not in request.files:
+        return error_response(ValidationError("No image file provided"))
+    file = request.files.get("cover") or request.files.get("file")
+    content_type = file.content_type or "image/jpeg"
+    file_bytes = file.read()
+    if not file_bytes:
+        return error_response(ValidationError("Image file is empty"))
+
+    signed_url = get_container().book_service.update_book_cover(
+        book_id, user_id, file_bytes, content_type
+    )
+    if not signed_url:
+        return error_response(NotFoundError("Book not found"))
+    return jsonify({"book_id": book_id, "cover_url": signed_url})
+
+
+@books_bp.post("/<book_id>/cover-from-url")
+@require_auth
+def update_cover_from_url(book_id: str):
+    user_id = current_user_id()
+    payload = request.get_json(silent=True) or {}
+    cover_url = str(payload.get("cover_url") or "").strip()
+    if not cover_url:
+        return error_response(ValidationError("cover_url is required"))
+
+    try:
+        resp = requests.get(cover_url, timeout=15)
+        resp.raise_for_status()
+        content_type = resp.headers.get("content-type", "image/jpeg")
+        signed_url = get_container().book_service.update_book_cover(
+            book_id, user_id, resp.content, content_type
+        )
+        if not signed_url:
+            return error_response(NotFoundError("Book not found"))
+        return jsonify({"book_id": book_id, "cover_url": signed_url})
+    except Exception as exc:
+        logger.exception("Failed to fetch cover from url: %s", cover_url)
+        return error_response(InfrastructureError(f"Failed to fetch cover image: {exc}"))
