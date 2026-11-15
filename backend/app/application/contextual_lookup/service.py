@@ -47,7 +47,7 @@ class ContextualLookupService:
         position_char: int = 0,
         position_cfi: str | None = None,
     ) -> ContextualLookupResultDTO:
-        clean_term = term.strip()
+        clean_term = term.strip().strip("\"'“”‘’.,;:!?()[]{}\u201c\u201d\u2018\u2019")
         if not clean_term:
             return ContextualLookupResultDTO(term="", explanation="No term provided.", grounded=False)
 

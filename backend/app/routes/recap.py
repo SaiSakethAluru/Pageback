@@ -54,7 +54,10 @@ def contextual_lookup():
     payload = request.get_json(silent=True) or {}
     book_id = str(payload.get("book_id") or "").strip()
     term = str(payload.get("term") or "").strip()
-    position_char = int(payload.get("position_char") or 0)
+    try:
+        position_char = int(payload.get("position_char") or 0)
+    except (ValueError, TypeError):
+        position_char = 0
     position_cfi = payload.get("position_cfi")
 
     if not book_id:
