@@ -1,36 +1,144 @@
-import { useEffect, useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
 import * as api from "../../services/api";
 
 export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [newCoverFile, setNewCoverFile] = useState(null);
+  const [pendingOnlineCoverUrl, setPendingOnlineCoverUrl] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Online metadata fetch state
+  const [isFetchingOnline, setIsFetchingOnline] = useState(false);
+  const [onlineResults, setOnlineResults] = useState([]);
+  const [onlineSearchOpen, setOnlineSearchOpen] = useState(false);
+  const [onlineSearchMessage, setOnlineSearchMessage] = useState("");
+
+  const fileInputRef = useRef(null);
+  const previewUrlRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleEscape(e) {
+      if (e.key === "Escape" && !isSaving) {
+        onClose?.();
+      }
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, isSaving, onClose]);
 
   useEffect(() => {
     if (!isOpen || !book) {
       return;
     }
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
     setTitle(book.title || "");
     setAuthor(book.author || "");
+    setCoverUrl(book.cover_url || "");
+    setNewCoverFile(null);
+    setPendingOnlineCoverUrl(null);
     setError("");
+    setOnlineResults([]);
+    setOnlineSearchOpen(false);
+    setOnlineSearchMessage("");
   }, [book, isOpen]);
 
   if (!isOpen || !book) {
     return null;
   }
 
+  function handleFileSelected(event) {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+      setNewCoverFile(file);
+      setPendingOnlineCoverUrl(null);
+      const preview = URL.createObjectURL(file);
+      previewUrlRef.current = preview;
+      setCoverUrl(preview);
+    }
+  }
+
+  async function handleFetchOnline() {
+    const searchTitle = title.trim() || book.title || "";
+    if (!searchTitle) {
+      setError("Please enter a title before fetching metadata.");
+      return;
+    }
+
+    setIsFetchingOnline(true);
+    setOnlineSearchMessage("");
+    setError("");
+    setOnlineSearchOpen(true);
+
+    try {
+      const results = await api.fetchOnlineBookMetadata(searchTitle, author.trim());
+      if (results.length === 0) {
+        setOnlineSearchMessage("No matching books found online.");
+        setOnlineResults([]);
+      } else {
+        setOnlineResults(results);
+        setOnlineSearchMessage(`Found ${results.length} match${results.length > 1 ? "es" : ""}:`);
+      }
+    } catch (err) {
+      setOnlineSearchMessage("Failed to search OpenLibrary: " + (err.message || "Network error"));
+      setOnlineResults([]);
+    } finally {
+      setIsFetchingOnline(false);
+    }
+  }
+
+  function handleApplyMatch(match) {
+    if (match.title) setTitle(match.title);
+    if (match.author) setAuthor(match.author);
+    if (match.coverUrl) {
+      setCoverUrl(match.coverUrl);
+      setPendingOnlineCoverUrl(match.coverUrl);
+      setNewCoverFile(null);
+    }
+    setOnlineSearchOpen(false);
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setIsSaving(true);
     setError("");
+
     try {
-      const updated = await api.updateBookMetadata(book.id, { title, author });
-      onSaved?.(book.id, updated);
+      const updatedMeta = await api.updateBookMetadata(book.id, { title, author });
+      let finalCoverUrl = book.cover_url;
+
+      if (newCoverFile) {
+        const coverRes = await api.uploadBookCover(book.id, newCoverFile);
+        finalCoverUrl = coverRes.cover_url;
+      } else if (pendingOnlineCoverUrl) {
+        const coverRes = await api.updateBookCoverFromUrl(book.id, pendingOnlineCoverUrl);
+        finalCoverUrl = coverRes.cover_url;
+      }
+
+      onSaved?.(book.id, {
+        ...updatedMeta,
+        cover_url: finalCoverUrl,
+      });
       onClose?.();
     } catch (saveError) {
-      setError(saveError.message);
+      setError(saveError.message || "Failed to save metadata.");
     } finally {
       setIsSaving(false);
     }
@@ -38,39 +146,55 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
 
   return (
     <div style={backdropStyle} onClick={onClose}>
-      <div style={dialogStyle} onClick={(event) => event.stopPropagation()}>
+      <div style={dialogStyle} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
         <div style={headerStyle}>
           <div>
-            <p style={eyebrowStyle}>Edit Metadata</p>
+            <p style={eyebrowStyle}>Edit Metadata & Cover</p>
             <h2 style={titleStyle}>Book details</h2>
-            <p style={subtitleStyle}>Clean up missing or messy EPUB metadata before it shows in your library.</p>
+            <p style={subtitleStyle}>
+              Calibre-style metadata management: edit title/author, upload custom cover art, or auto-fetch from online sources.
+            </p>
           </div>
-          <button type="button" onClick={onClose} style={closeButtonStyle} aria-label="Close edit metadata dialog">
-            x
+          <button type="button" onClick={onClose} style={closeButtonStyle} aria-label="Close dialog">
+            ✕
           </button>
         </div>
 
         <div style={contentStyle}>
           <div style={previewPanelStyle}>
             <div style={coverFrameStyle}>
-              {book.cover_url ? (
-                <img src={book.cover_url} alt="" style={coverImageStyle} />
+              {coverUrl ? (
+                <img src={coverUrl} alt="Cover preview" style={coverImageStyle} />
               ) : (
                 <div style={coverFallbackStyle}>
                   <span style={coverFallbackTextStyle}>{getInitials(title || book.title)}</span>
                 </div>
               )}
             </div>
-            <p style={helperLabelStyle}>Source</p>
-            <p style={helperTextStyle}>
-              Metadata currently lives on the book record in our `books` table.
-            </p>
-            <p style={helperLabelStyle}>TODO</p>
-            <p style={helperTextStyle}>
-              Add online metadata lookup similar to Calibre for auto-fill and cover matching.
-            </p>
-            <button type="button" disabled style={todoButtonStyle}>
-              Fetch Metadata Online (TODO)
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelected}
+              accept="image/*"
+              style={{ display: "none" }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={actionOutlineButtonStyle}
+            >
+              📷 Upload Cover Picture
+            </button>
+
+            <button
+              type="button"
+              onClick={handleFetchOnline}
+              disabled={isFetchingOnline}
+              style={fetchOnlineButtonStyle}
+            >
+              {isFetchingOnline ? "🔍 Searching OpenLibrary..." : "🌐 Fetch Metadata Online"}
             </button>
           </div>
 
@@ -95,11 +219,47 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
               />
             </label>
 
+            {onlineSearchOpen ? (
+              <div style={onlineResultsBoxStyle}>
+                <div style={onlineHeaderStyle}>
+                  <span style={onlineTitleStyle}>{onlineSearchMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setOnlineSearchOpen(false)}
+                    style={smallCloseButtonStyle}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {onlineResults.map((result, idx) => (
+                  <div key={idx} style={matchItemStyle}>
+                    {result.coverUrl ? (
+                      <img src={result.coverUrl} alt="" style={matchThumbStyle} />
+                    ) : (
+                      <div style={matchThumbFallbackStyle}>📖</div>
+                    )}
+                    <div style={matchInfoStyle}>
+                      <p style={matchTitleStyle}>{result.title}</p>
+                      <p style={matchMetaStyle}>
+                        {result.author} {result.firstPublishYear ? `(${result.firstPublishYear})` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyMatch(result)}
+                      style={applyMatchButtonStyle}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div style={infoPanelStyle}>
-              <p style={infoTitleStyle}>How this works today</p>
+              <p style={infoTitleStyle}>Calibre-Style Library Integration</p>
               <p style={infoBodyStyle}>
-                On upload, we try to read title, author, and cover from the EPUB itself. When those fields are missing
-                or wrong, this editor lets you override them for your library.
+                Updates are stored with the book and will reflect across the reader, library tiled grid, and Calibre list views.
               </p>
             </div>
 
@@ -110,7 +270,7 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
                 Cancel
               </button>
               <button type="submit" disabled={isSaving} style={primaryButtonStyle}>
-                {isSaving ? "Saving..." : "Save Metadata"}
+                {isSaving ? "Saving changes..." : "Save Metadata"}
               </button>
             </div>
           </form>
@@ -139,6 +299,7 @@ const backdropStyle = {
   justifyContent: "center",
   padding: "1.5rem",
   zIndex: 40,
+  overflowY: "auto",
 };
 
 const dialogStyle = {
@@ -175,7 +336,9 @@ const titleStyle = {
 const subtitleStyle = {
   margin: "0.4rem 0 0",
   color: "#6a655e",
-  maxWidth: 500,
+  maxWidth: 550,
+  lineHeight: "1.4",
+  fontSize: "0.92rem",
 };
 
 const closeButtonStyle = {
@@ -183,15 +346,16 @@ const closeButtonStyle = {
   background: "#fff9f2",
   color: "#4b4037",
   borderRadius: 999,
-  width: 40,
-  height: 40,
-  fontSize: "1rem",
+  width: 36,
+  height: 36,
+  fontSize: "0.95rem",
   flexShrink: 0,
+  cursor: "pointer",
 };
 
 const contentStyle = {
   display: "grid",
-  gridTemplateColumns: "260px minmax(0, 1fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
   gap: "1.5rem",
   padding: "1.5rem 1.75rem 1.75rem",
 };
@@ -204,7 +368,7 @@ const previewPanelStyle = {
 
 const coverFrameStyle = {
   aspectRatio: "3 / 4.35",
-  borderRadius: 24,
+  borderRadius: 20,
   overflow: "hidden",
   background: "linear-gradient(160deg, #d4b181 0%, #8f5d3b 55%, #4a2d21 100%)",
   boxShadow: "0 18px 36px rgba(58, 37, 24, 0.2)",
@@ -233,27 +397,28 @@ const coverFallbackTextStyle = {
   color: "#fff8ee",
 };
 
-const helperLabelStyle = {
-  margin: "0.15rem 0 0",
-  fontSize: "0.75rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: "#8b5e3c",
+const actionOutlineButtonStyle = {
+  border: "1px solid #d5c9ba",
+  background: "#fffdfa",
+  color: "#4a3e33",
+  borderRadius: 12,
+  padding: "0.65rem 0.85rem",
+  fontSize: "0.85rem",
+  fontWeight: 600,
+  cursor: "pointer",
+  textAlign: "center",
 };
 
-const helperTextStyle = {
-  margin: 0,
-  color: "#5f584f",
-  lineHeight: 1.5,
-};
-
-const todoButtonStyle = {
-  border: "1px dashed #cebca7",
-  background: "#f5ede2",
-  color: "#8d7864",
-  borderRadius: 14,
-  padding: "0.85rem 1rem",
-  textAlign: "left",
+const fetchOnlineButtonStyle = {
+  border: "1px solid #c2996d",
+  background: "#fbf3e8",
+  color: "#7e5229",
+  borderRadius: 12,
+  padding: "0.65rem 0.85rem",
+  fontSize: "0.85rem",
+  fontWeight: 600,
+  cursor: "pointer",
+  textAlign: "center",
 };
 
 const formStyle = {
@@ -278,15 +443,107 @@ const labelStyle = {
 const inputStyle = {
   border: "1px solid #d5c9ba",
   borderRadius: 16,
-  padding: "0.95rem 1rem",
+  padding: "0.85rem 1rem",
   background: "#fffdfa",
   color: "#1f2930",
   fontSize: "1rem",
 };
 
+const onlineResultsBoxStyle = {
+  border: "1px solid #d5c9ba",
+  borderRadius: 16,
+  background: "#fcf9f4",
+  padding: "0.85rem",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.65rem",
+  maxHeight: "220px",
+  overflowY: "auto",
+};
+
+const onlineHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const onlineTitleStyle = {
+  fontSize: "0.85rem",
+  fontWeight: 600,
+  color: "#7e5229",
+};
+
+const smallCloseButtonStyle = {
+  border: "none",
+  background: "none",
+  color: "#7e5229",
+  cursor: "pointer",
+  fontSize: "0.85rem",
+};
+
+const matchItemStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+  background: "#ffffff",
+  border: "1px solid #e8ded2",
+  borderRadius: 10,
+  padding: "0.5rem 0.75rem",
+};
+
+const matchThumbStyle = {
+  width: "32px",
+  height: "44px",
+  objectFit: "cover",
+  borderRadius: 4,
+};
+
+const matchThumbFallbackStyle = {
+  width: "32px",
+  height: "44px",
+  background: "#eee5d7",
+  borderRadius: 4,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "1rem",
+};
+
+const matchInfoStyle = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const matchTitleStyle = {
+  margin: 0,
+  fontSize: "0.88rem",
+  fontWeight: 600,
+  color: "#241f1a",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const matchMetaStyle = {
+  margin: "0.15rem 0 0",
+  fontSize: "0.78rem",
+  color: "#786d62",
+};
+
+const applyMatchButtonStyle = {
+  border: "1px solid #8b5e3c",
+  background: "#fdf8f2",
+  color: "#8b5e3c",
+  borderRadius: 8,
+  padding: "0.35rem 0.7rem",
+  fontSize: "0.78rem",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
 const infoPanelStyle = {
-  padding: "1rem 1.05rem",
-  borderRadius: 18,
+  padding: "0.9rem 1rem",
+  borderRadius: 16,
   background: "#fff8ef",
   border: "1px solid #eadcc8",
 };
@@ -294,13 +551,15 @@ const infoPanelStyle = {
 const infoTitleStyle = {
   margin: 0,
   fontWeight: 700,
+  fontSize: "0.9rem",
   color: "#3c312a",
 };
 
 const infoBodyStyle = {
-  margin: "0.45rem 0 0",
+  margin: "0.35rem 0 0",
+  fontSize: "0.85rem",
   color: "#655f57",
-  lineHeight: 1.5,
+  lineHeight: 1.45,
 };
 
 const errorStyle = {
@@ -318,17 +577,19 @@ const actionsStyle = {
 const secondaryButtonStyle = {
   border: "1px solid #d5c9ba",
   borderRadius: 999,
-  padding: "0.8rem 1rem",
+  padding: "0.75rem 1.15rem",
   background: "#fff8ef",
   color: "#3c312a",
   fontWeight: 600,
+  cursor: "pointer",
 };
 
 const primaryButtonStyle = {
   border: "none",
   borderRadius: 999,
-  padding: "0.8rem 1.05rem",
+  padding: "0.75rem 1.25rem",
   background: "#193847",
   color: "#fff",
   fontWeight: 700,
+  cursor: "pointer",
 };

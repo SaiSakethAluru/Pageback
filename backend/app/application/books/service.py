@@ -63,6 +63,26 @@ class BookService:
     def upload_cover(self, path: str, content: bytes, content_type: str) -> None:
         self._storage.upload(path, content, content_type)
 
+    def update_book_cover(
+        self,
+        book_id: str,
+        user_id: str,
+        file_bytes: bytes,
+        content_type: str = "image/jpeg",
+    ) -> str | None:
+        book = self._books.get_by_id(book_id, user_id)
+        if not book:
+            return None
+        ext = "jpg"
+        if "png" in content_type:
+            ext = "png"
+        elif "webp" in content_type:
+            ext = "webp"
+        cover_path = f"{user_id}/{book_id}/cover.{ext}"
+        self._storage.upload(cover_path, file_bytes, content_type)
+        self._books.update_cover_path(book_id, cover_path)
+        return self._storage.create_signed_url(cover_path, 86400 * 7)
+
     def update_ingestion_status(
         self,
         book_id: str,

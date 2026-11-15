@@ -1,10 +1,12 @@
 from dataclasses import asdict
 
+import ipaddress
 import logging
-
+from urllib.parse import urlparse
+import requests
 from flask import Blueprint, jsonify, request
 
-from app.application.errors import InfrastructureError, NotFoundError
+from app.application.errors import InfrastructureError, NotFoundError, ValidationError
 from app.auth import current_user_id, require_auth
 from app.bootstrap import get_container
 from app.interfaces.http.errors import error_response
@@ -187,3 +189,80 @@ def get_book_file_url(book_id: str):
     if not signed_url:
         return error_response(NotFoundError("Book not found"))
     return jsonify({"signed_url": signed_url})
+
+
+@books_bp.post("/<book_id>/cover")
+@require_auth
+def upload_book_cover(book_id: str):
+    user_id = current_user_id()
+    if "cover" not in request.files and "file" not in request.files:
+        return error_response(ValidationError("No image file provided"))
+    file = request.files.get("cover") or request.files.get("file")
+    content_type = file.content_type or "image/jpeg"
+    file_bytes = file.read()
+    if not file_bytes:
+        return error_response(ValidationError("Image file is empty"))
+
+    signed_url = get_container().book_service.update_book_cover(
+        book_id, user_id, file_bytes, content_type
+    )
+    if not signed_url:
+        return error_response(NotFoundError("Book not found"))
+    return jsonify({"book_id": book_id, "cover_url": signed_url})
+
+
+def _is_safe_public_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = (parsed.hostname or "").lower()
+        if not hostname or hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+            return False
+        if hostname.startswith("169.254.") or hostname.startswith("10.") or hostname.startswith("192.168."):
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+@books_bp.post("/<book_id>/cover-from-url")
+@require_auth
+def update_cover_from_url(book_id: str):
+    user_id = current_user_id()
+    payload = request.get_json(silent=True) or {}
+    cover_url = str(payload.get("cover_url") or "").strip()
+    if not cover_url:
+        return error_response(ValidationError("cover_url is required"))
+
+    if not _is_safe_public_url(cover_url):
+        return error_response(ValidationError("Invalid or prohibited image URL"))
+
+    try:
+        resp = requests.get(cover_url, timeout=15, stream=True)
+        resp.raise_for_status()
+        content_type = resp.headers.get("content-type", "").lower()
+        if not content_type.startswith("image/"):
+            return error_response(ValidationError("URL must point to an image"))
+
+        content = resp.raw.read(10 * 1024 * 1024 + 1)
+        if len(content) > 10 * 1024 * 1024:
+            return error_response(ValidationError("Image exceeds maximum 10MB limit"))
+
+        signed_url = get_container().book_service.update_book_cover(
+            book_id, user_id, content, content_type
+        )
+        if not signed_url:
+            return error_response(NotFoundError("Book not found"))
+        return jsonify({"book_id": book_id, "cover_url": signed_url})
+    except ApplicationError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to fetch cover from url: %s", cover_url)
+        return error_response(InfrastructureError(f"Failed to fetch cover image: {exc}"))
