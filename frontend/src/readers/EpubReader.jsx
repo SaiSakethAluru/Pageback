@@ -27,6 +27,7 @@ const EpubReader = forwardRef(function EpubReader(
   const onReadyChangeRef = useRef(onReadyChange);
   const onTextSelectedRef = useRef(onTextSelected);
   const onClearSelectionRef = useRef(onClearSelection);
+  const lastLongPressTimeRef = useRef(0);
   const locationsReadyRef = useRef(false);
   const calculatePositionInfoRef = useRef(null);
   const [error, setError] = useState("");
@@ -217,6 +218,9 @@ const EpubReader = forwardRef(function EpubReader(
             background: "transparent",
             "caret-color": "transparent",
             outline: "none",
+            "-webkit-touch-callout": "none",
+            "-webkit-user-select": "text",
+            "user-select": "text",
           },
         });
         rendition.themes.fontSize(`${fontScale}%`);
@@ -305,11 +309,11 @@ const EpubReader = forwardRef(function EpubReader(
                     const offset = range.startOffset;
 
                     let start = offset;
-                    while (start > 0 && /[\w'-]/.test(fullText[start - 1])) {
+                    while (start > 0 && /[\p{L}\p{N}\u2018\u2019'-]/u.test(fullText[start - 1])) {
                       start--;
                     }
                     let end = offset;
-                    while (end < fullText.length && /[\w'-]/.test(fullText[end])) {
+                    while (end < fullText.length && /[\p{L}\p{N}\u2018\u2019'-]/u.test(fullText[end])) {
                       end++;
                     }
 
@@ -329,6 +333,7 @@ const EpubReader = forwardRef(function EpubReader(
                           sel.addRange(wordRange);
                         }
 
+                        lastLongPressTimeRef.current = Date.now();
                         onTextSelectedRef.current?.({
                           text: word,
                           isLongPress: true,
@@ -373,41 +378,14 @@ const EpubReader = forwardRef(function EpubReader(
               activeTouchTimer = null;
             }
           });
-
-          // Mouse selection on desktop
-          doc.addEventListener("mouseup", () => {
-            setTimeout(() => {
-              const sel = contents.window?.getSelection();
-              if (sel && !sel.isCollapsed) {
-                const text = sel.toString().trim();
-                if (text && text.length > 0) {
-                  try {
-                    const range = sel.getRangeAt(0);
-                    const rect = range.getBoundingClientRect();
-                    const iframeEl = doc.defaultView?.frameElement;
-                    const iframeRect = iframeEl?.getBoundingClientRect() || { left: 0, top: 0 };
-                    onTextSelectedRef.current?.({
-                      text,
-                      isLongPress: false,
-                      rect: {
-                        top: rect.top + iframeRect.top,
-                        bottom: rect.bottom + iframeRect.top,
-                        left: rect.left + iframeRect.left,
-                        right: rect.right + iframeRect.left,
-                        width: rect.width,
-                        height: rect.height,
-                      },
-                    });
-                  } catch {
-                    // Ignore range errors
-                  }
-                }
-              }
-            }, 10);
-          });
         });
 
         rendition.on("selected", (cfiRange, contents) => {
+          // If this selection event was caused by programmatic selection during a long-press, skip it
+          if (Date.now() - lastLongPressTimeRef.current < 1000) {
+            return;
+          }
+
           try {
             const range = rendition.getRange(cfiRange);
             if (!range) return;

@@ -7,10 +7,14 @@ export async function lookupWord(rawWord) {
     throw new Error("No word provided");
   }
 
-  // Clean word: remove trailing/leading punctuation, quotes, brackets
-  const word = rawWord
+  // Normalize typographic curly quotes/apostrophes to standard ASCII single quote
+  let word = rawWord
     .trim()
-    .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
+    .replace(/[\u2018\u2019\u02BC]/g, "'");
+
+  // Clean word: remove leading/trailing punctuation and non-letters/numbers using Unicode properties
+  word = word
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
     .toLowerCase();
 
   if (!word) {
@@ -34,17 +38,21 @@ export async function lookupWord(rawWord) {
   }
 
   const primary = data[0];
-  
+
   // Find phonetic text
   const phoneticText =
     primary.phonetic ||
     primary.phonetics?.find((p) => p.text)?.text ||
     "";
 
-  // Find audio URL if available
-  const audioUrl =
+  // Find audio URL if available and normalize protocol
+  let audioUrl =
     primary.phonetics?.find((p) => p.audio && p.audio.length > 0)?.audio ||
     null;
+
+  if (audioUrl && audioUrl.startsWith("//")) {
+    audioUrl = `https:${audioUrl}`;
+  }
 
   // Flatten and structure meanings
   const meanings = (primary.meanings || []).map((meaning) => ({

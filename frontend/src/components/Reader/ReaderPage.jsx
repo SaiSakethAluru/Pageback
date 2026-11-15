@@ -258,7 +258,7 @@ export default function ReaderPage() {
       setSelectedTextInfo(null);
       setLookupWord(trimmed);
       setLookupPosition(rect);
-    } else {
+    } else if (!lookupWord) {
       setSelectedTextInfo({ text: trimmed, rect });
     }
   }
@@ -269,10 +269,11 @@ export default function ReaderPage() {
 
   function handleDefine(text) {
     const word = text || selectedTextInfo?.text;
+    const pos = selectedTextInfo?.rect || null;
     setSelectedTextInfo(null);
     if (word) {
       setLookupWord(word);
-      setLookupPosition(selectedTextInfo?.rect || null);
+      setLookupPosition(pos);
     }
   }
 
@@ -779,12 +780,14 @@ export default function ReaderPage() {
         />
       ) : null}
 
-      <TextSelectionToolbar
-        selectedText={selectedTextInfo?.text}
-        rect={selectedTextInfo?.rect}
-        onDefine={handleDefine}
-        onClear={handleClearSelection}
-      />
+      {!lookupWord && selectedTextInfo ? (
+        <TextSelectionToolbar
+          selectedText={selectedTextInfo.text}
+          rect={selectedTextInfo.rect}
+          onDefine={handleDefine}
+          onClear={handleClearSelection}
+        />
+      ) : null}
 
       <WordLookupModal
         word={lookupWord}
@@ -793,6 +796,7 @@ export default function ReaderPage() {
         onClose={() => {
           setLookupWord(null);
           setLookupPosition(null);
+          setSelectedTextInfo(null);
         }}
       />
     </div>

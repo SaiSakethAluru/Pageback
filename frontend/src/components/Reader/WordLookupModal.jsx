@@ -14,6 +14,32 @@ export default function WordLookupModal({
   const [copied, setCopied] = useState(false);
   const audioRef = useRef(null);
 
+  // Stop audio on unmount or when modal closes
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Escape key listener to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        onClose?.();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     if (!isOpen || !word) {
       return;
@@ -24,6 +50,11 @@ export default function WordLookupModal({
     setError("");
     setData(null);
     setCopied(false);
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
 
     lookupWord(word)
       .then((result) => {
@@ -69,33 +100,48 @@ export default function WordLookupModal({
     }
   }
 
-  // Calculate popover positioning if position coords provided
+  // Calculate popover positioning only on desktop/tablet (width >= 768px)
   let containerPositionStyle = {};
-  if (position && position.top != null) {
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+
+  if (isDesktop && position && position.top != null) {
     const spaceBelow = window.innerHeight - position.bottom;
-    const placeAbove = spaceBelow < 320 && position.top > 320;
+    const placeAbove = spaceBelow < 340 && position.top > 340;
     const top = placeAbove
-      ? Math.max(16, position.top - 360)
+      ? Math.max(20, position.top - 380)
       : Math.min(window.innerHeight - 380, position.bottom + 12);
     const left = Math.max(
-      16,
-      Math.min(window.innerWidth - 380, position.left - 100)
+      20,
+      Math.min(window.innerWidth - 440, position.left - 80)
     );
+    const maxHeight = Math.max(260, window.innerHeight - top - 32);
 
     containerPositionStyle = {
       position: "fixed",
       top: `${top}px`,
       left: `${left}px`,
+      maxHeight: `${maxHeight}px`,
       zIndex: 100,
     };
   }
 
   return (
     <div style={backdropStyle} onClick={onClose}>
+      <style>{`
+        @keyframes pagebackSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pagebackFadeIn {
+          from { opacity: 0; transform: scale(0.97); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
       <div
         style={{ ...dialogStyle, ...containerPositionStyle }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label={`Definition of ${word}`}
       >
         <div style={headerStyle}>
@@ -133,7 +179,7 @@ export default function WordLookupModal({
           {loading ? (
             <div style={loadingStyle}>
               <div style={spinnerStyle} />
-              <p style={{ margin: "0.5rem 0 0", color: "#6e6255" }}>
+              <p style={{ margin: "0.5rem 0 0", color: "#6e6255", fontSize: "0.9rem" }}>
                 Looking up "{word}"...
               </p>
             </div>
@@ -235,6 +281,7 @@ const backdropStyle = {
   justifyContent: "center",
   zIndex: 90,
   padding: "1rem",
+  overflowY: "auto",
 };
 
 const dialogStyle = {
@@ -248,6 +295,7 @@ const dialogStyle = {
   boxShadow: "0 24px 60px rgba(20, 25, 31, 0.28)",
   border: "1px solid rgba(115, 98, 74, 0.2)",
   overflow: "hidden",
+  animation: "pagebackFadeIn 0.15s ease-out",
 };
 
 const headerStyle = {
@@ -257,6 +305,7 @@ const headerStyle = {
   justifyContent: "space-between",
   alignItems: "flex-start",
   background: "#f6f1e8",
+  flexShrink: 0,
 };
 
 const headerLeftStyle = {
@@ -333,7 +382,7 @@ const spinnerStyle = {
   border: "3px solid #e0d7c7",
   borderTopColor: "#8c6541",
   borderRadius: "50%",
-  animation: "spin 0.8s linear infinite",
+  animation: "pagebackSpin 0.8s linear infinite",
 };
 
 const errorContainerStyle = {
@@ -441,6 +490,7 @@ const footerStyle = {
   justifyContent: "space-between",
   alignItems: "center",
   gap: "0.5rem",
+  flexShrink: 0,
 };
 
 const secondaryButtonStyle = {

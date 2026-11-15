@@ -30,13 +30,13 @@ export default function TextSelectionToolbar({
   const isShortText = selectedText.trim().split(/\s+/).length <= 4;
   
   // Calculate position centered horizontally above or below selection
-  const toolbarWidth = 260;
   const toolbarHeight = 44;
+  const estimatedWidth = isShortText ? 260 : 160;
   const left = Math.max(
     12,
     Math.min(
-      window.innerWidth - toolbarWidth - 12,
-      rect.left + rect.width / 2 - toolbarWidth / 2
+      window.innerWidth - estimatedWidth - 12,
+      rect.left + rect.width / 2 - estimatedWidth / 2
     )
   );
 
@@ -61,11 +61,17 @@ export default function TextSelectionToolbar({
         ...toolbarStyle,
         top: `${top}px`,
         left: `${left}px`,
-        width: `${toolbarWidth}px`,
       }}
       role="toolbar"
       aria-label="Text selection actions"
     >
+      <style>{`
+        @keyframes pagebackToolbarFadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       {isShortText && onDefine ? (
         <button
           type="button"
@@ -116,6 +122,8 @@ export default function TextSelectionToolbar({
 const toolbarStyle = {
   position: "fixed",
   height: "40px",
+  width: "auto",
+  minWidth: "150px",
   background: "#1c1712",
   color: "#f6f1e8",
   borderRadius: "12px",
@@ -123,10 +131,10 @@ const toolbarStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  padding: "0 6px",
+  padding: "0 10px",
   zIndex: 85,
-  gap: "4px",
-  animation: "fadeIn 0.15s ease-out",
+  gap: "6px",
+  animation: "pagebackToolbarFadeIn 0.15s ease-out",
 };
 
 const actionButtonStyle = {
