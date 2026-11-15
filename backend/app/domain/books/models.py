@@ -7,6 +7,8 @@ from dataclasses import dataclass
 class BookMetadata:
     title: str | None
     author: str | None
+    series_name: str | None = None
+    series_order: float | None = None
 
 
 @dataclass(frozen=True)

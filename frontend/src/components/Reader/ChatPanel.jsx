@@ -27,8 +27,24 @@ export default function ChatPanel({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [seriesInfo, setSeriesInfo] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!bookId) return;
+    let active = true;
+    api.getBookSeries(bookId)
+      .then((data) => {
+        if (active && data?.series_name && data?.previous_books?.length > 0) {
+          setSeriesInfo(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [bookId]);
 
   useEffect(() => {
     try {
@@ -129,6 +145,14 @@ export default function ChatPanel({
           <div style={titleRowStyle}>
             <span style={badgeStyle}>Cursor Chat</span>
             <span style={spoilerBadgeStyle}>🛡️ Spoiler-safe</span>
+            {seriesInfo ? (
+              <span
+                style={seriesTagStyle}
+                title={`Backstory context active from ${seriesInfo.previous_books.length} earlier book(s) in ${seriesInfo.series_name}`}
+              >
+                📚 Series: {seriesInfo.series_name}
+              </span>
+            ) : null}
           </div>
           <h2 style={titleStyle}>Book Assistant</h2>
           <p style={subtitleStyle}>
@@ -309,6 +333,20 @@ const spoilerBadgeStyle = {
   background: "#e4efe7",
   padding: "0.1rem 0.4rem",
   borderRadius: "5px",
+};
+
+const seriesTagStyle = {
+  fontSize: "0.7rem",
+  fontWeight: 600,
+  color: "#7e5229",
+  background: "#f4ebd9",
+  border: "1px solid rgba(126, 82, 41, 0.2)",
+  padding: "0.1rem 0.45rem",
+  borderRadius: "5px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  maxWidth: "180px",
 };
 
 const titleStyle = {

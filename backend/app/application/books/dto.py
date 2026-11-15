@@ -15,6 +15,8 @@ class BookDTO:
     ingestion_step: str | None
     ingestion_error: str | None
     created_at: str | None
+    series_name: str | None = None
+    series_order: float | None = None
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,8 @@ class BookFileDTO:
     ingestion_step: str | None
     ingestion_error: str | None
     created_at: str | None
+    series_name: str | None = None
+    series_order: float | None = None
 
 
 @dataclass(frozen=True)

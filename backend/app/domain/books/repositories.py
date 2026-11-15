@@ -18,6 +18,22 @@ class BookRepository(ABC):
     def list_by_user(self, user_id: str) -> list[Book]:
         raise NotImplementedError
 
+    def list_books_in_series(self, user_id: str, series_name: str) -> list[Book]:
+        all_books = self.list_by_user(user_id)
+        series_clean = series_name.strip().lower()
+        matching = [
+            b
+            for b in all_books
+            if b.metadata.series_name and b.metadata.series_name.strip().lower() == series_clean
+        ]
+        matching.sort(
+            key=lambda b: (
+                b.metadata.series_order if b.metadata.series_order is not None else float("inf"),
+                b.created_at or "",
+            )
+        )
+        return matching
+
     @abstractmethod
     def update_metadata(self, book_id: str, user_id: str, metadata: BookMetadata) -> Book | None:
         raise NotImplementedError

@@ -19,6 +19,13 @@ AI_MODEL_CONFIGS_TABLE = "ai_model_configs"
 
 
 def _map_book(row: dict) -> Book:
+    series_order = None
+    if row.get("series_order") is not None:
+        try:
+            series_order = float(row.get("series_order"))
+        except (ValueError, TypeError):
+            series_order = None
+
     return Book(
         id=str(row.get("id")),
         user_id=str(row.get("user_id")),
@@ -26,6 +33,8 @@ def _map_book(row: dict) -> Book:
         metadata=BookMetadata(
             title=row.get("title"),
             author=row.get("author"),
+            series_name=row.get("series_name"),
+            series_order=series_order,
         ),
         ingestion=IngestionInfo(
             status=str(row.get("ingestion_status") or "ready"),
@@ -48,16 +57,32 @@ class SupabaseBookRepository(BookRepository):
         self._client_factory = client_factory
 
     def create(self, book: Book) -> None:
-        self._client().table(BOOKS_TABLE).insert(
-            {
-                "id": book.id,
-                "user_id": book.user_id,
-                "storage_path": book.storage_path,
-                "title": book.metadata.title,
-                "author": book.metadata.author,
-                "ingestion_status": book.ingestion.status,
-            }
-        ).execute()
+        payload = {
+            "id": book.id,
+            "user_id": book.user_id,
+            "storage_path": book.storage_path,
+            "title": book.metadata.title,
+            "author": book.metadata.author,
+            "ingestion_status": book.ingestion.status,
+        }
+        if book.metadata.series_name is not None:
+            payload["series_name"] = book.metadata.series_name
+        if book.metadata.series_order is not None:
+            payload["series_order"] = book.metadata.series_order
+
+        try:
+            self._client().table(BOOKS_TABLE).insert(payload).execute()
+        except Exception:
+            self._client().table(BOOKS_TABLE).insert(
+                {
+                    "id": book.id,
+                    "user_id": book.user_id,
+                    "storage_path": book.storage_path,
+                    "title": book.metadata.title,
+                    "author": book.metadata.author,
+                    "ingestion_status": book.ingestion.status,
+                }
+            ).execute()
 
     def get_by_id(self, book_id: str, user_id: str) -> Book | None:
         response = (
@@ -77,14 +102,30 @@ class SupabaseBookRepository(BookRepository):
         return [_map_book(row) for row in (response.data or [])]
 
     def update_metadata(self, book_id: str, user_id: str, metadata: BookMetadata) -> Book | None:
-        response = (
-            self._client()
-            .table(BOOKS_TABLE)
-            .update({"title": metadata.title, "author": metadata.author})
-            .eq("id", book_id)
-            .eq("user_id", user_id)
-            .execute()
-        )
+        payload: dict[str, object] = {
+            "title": metadata.title,
+            "author": metadata.author,
+            "series_name": metadata.series_name,
+            "series_order": metadata.series_order,
+        }
+        try:
+            response = (
+                self._client()
+                .table(BOOKS_TABLE)
+                .update(payload)
+                .eq("id", book_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+        except Exception:
+            response = (
+                self._client()
+                .table(BOOKS_TABLE)
+                .update({"title": metadata.title, "author": metadata.author})
+                .eq("id", book_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
         rows = response.data or []
         if rows:
             return _map_book({**rows[0], "user_id": user_id})
@@ -314,12 +355,12 @@ class SupabaseBookRepository(BookRepository):
     def _select_books(self):
         try:
             return self._client().table(BOOKS_TABLE).select(
-                "id, user_id, storage_path, title, author, cover_path, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
+                "id, user_id, storage_path, title, author, series_name, series_order, cover_path, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
             )
         except Exception:
             try:
                 return self._client().table(BOOKS_TABLE).select(
-                    "id, user_id, storage_path, title, author, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
+                    "id, user_id, storage_path, title, author, cover_path, ingestion_status, created_at, ingestion_progress, ingestion_step, ingestion_error, ingestion_request_id"
                 )
             except Exception:
                 return self._client().table(BOOKS_TABLE).select(

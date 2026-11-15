@@ -215,6 +215,12 @@ export async function updateBookCoverFromUrl(bookId, coverUrl) {
   });
 }
 
+export async function getBookSeries(bookId) {
+  return request(`/api/v1/books/${bookId}/series`, {
+    credentials: "include",
+  });
+}
+
 export async function fetchOnlineBookMetadata(title, author = "") {
   let query = "";
   if (title && author) {
@@ -232,15 +238,33 @@ export async function fetchOnlineBookMetadata(title, author = "") {
   const data = await response.json();
   const docs = data.docs || [];
 
-  return docs.map((doc) => ({
-    title: doc.title,
-    author: Array.isArray(doc.author_name) ? doc.author_name.join(", ") : doc.author_name || "",
-    firstPublishYear: doc.first_publish_year || null,
-    publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher || null,
-    coverUrl:
-      doc.cover_i && Number(doc.cover_i) > 0
-        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-        : null,
-    isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
-  }));
+  return docs.map((doc) => {
+    let seriesName = null;
+    let seriesOrder = null;
+    if (doc.series && Array.isArray(doc.series) && doc.series.length > 0) {
+      const rawSeries = String(doc.series[0]);
+      // Match patterns like "Harry Potter #2" or "Mistborn (Book 2)" or "Dune"
+      const match = rawSeries.match(/^(.*?)(?:[#,]\s*|\s+Book\s+)(\d+(?:\.\d+)?)\s*$/i);
+      if (match) {
+        seriesName = match[1].trim();
+        seriesOrder = parseFloat(match[2]);
+      } else {
+        seriesName = rawSeries.trim();
+      }
+    }
+
+    return {
+      title: doc.title,
+      author: Array.isArray(doc.author_name) ? doc.author_name.join(", ") : doc.author_name || "",
+      firstPublishYear: doc.first_publish_year || null,
+      publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : doc.publisher || null,
+      seriesName,
+      seriesOrder,
+      coverUrl:
+        doc.cover_i && Number(doc.cover_i) > 0
+          ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+          : null,
+      isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
+    };
+  });
 }

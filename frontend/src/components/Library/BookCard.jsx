@@ -142,6 +142,11 @@ export default function BookCard({ book, onDelete, onEditMetadata }) {
               <h3 style={titleStyle}>{title}</h3>
               {book.ingestion_status === "complete" ? <span style={statusCheckStyle}>✓</span> : null}
             </div>
+            {book.series_name ? (
+              <p style={seriesStyle}>
+                {book.series_name} {book.series_order != null ? `#${book.series_order}` : ""}
+              </p>
+            ) : null}
             <p style={authorStyle}>{author}</p>
           </div>
         </div>
@@ -340,6 +345,18 @@ const titleStyle = {
   fontSize: "1.2rem",
   lineHeight: 1.15,
   textShadow: "0 2px 10px rgba(0,0,0,0.22)",
+};
+
+const seriesStyle = {
+  margin: "0.2rem 0 0",
+  color: "#ffd599",
+  fontSize: "0.82rem",
+  fontWeight: 600,
+  letterSpacing: "0.01em",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  textShadow: "0 1px 4px rgba(0, 0, 0, 0.5)",
 };
 
 const authorStyle = {
