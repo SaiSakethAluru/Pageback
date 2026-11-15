@@ -62,6 +62,25 @@ class GeminiProvider(BaseLLMProvider):
         except (KeyError, IndexError, TypeError):
             return (data.get("text") or "").strip()
 
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        url = self._model_url(Config.GEMINI_RECAP_MODEL, "generateContent")
+        full_text = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": full_text}],
+                }
+            ],
+        }
+        response = requests.post(url, json=payload, headers=self._headers(), timeout=120)
+        response.raise_for_status()
+        data = response.json() or {}
+        try:
+            return (data["candidates"][0]["content"]["parts"][0]["text"] or "").strip()
+        except (KeyError, IndexError, TypeError):
+            return (data.get("text") or "").strip()
+
     def embed(self, text: str) -> list[float]:
         url = self._model_url(Config.GEMINI_EMBEDDING_MODEL, "embedContent")
         payload = {

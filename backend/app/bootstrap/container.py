@@ -6,6 +6,7 @@ from functools import lru_cache
 from app.application.books.ingestion_service import BookIngestionService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
+from app.application.contextual_lookup.service import ContextualLookupService
 from app.application.auth.service import AuthApplicationService
 from app.application.books.service import BookService
 from app.application.positions.service import ReadingPositionService
@@ -31,6 +32,7 @@ class ApplicationContainer:
     auth_service: AuthApplicationService
     book_service: BookService
     book_lifecycle_workflow: BookLifecycleWorkflow
+    contextual_lookup_service: ContextualLookupService
     ingestion_service: BookIngestionService
     ingestion_workflow: BookIngestionWorkflow
     position_service: ReadingPositionService
@@ -67,6 +69,13 @@ def get_container() -> ApplicationContainer:
             book_service,
             EpubMetadataExtractor(),
             recap_cache,
+        ),
+        contextual_lookup_service=ContextualLookupService(
+            chunk_repository,
+            llm_gateway,
+            window_resolver,
+            usage_log_repository,
+            positions=position_repository,
         ),
         ingestion_service=ingestion_service,
         ingestion_workflow=BookIngestionWorkflow(

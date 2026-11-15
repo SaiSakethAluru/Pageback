@@ -11,6 +11,9 @@ class ClaudeProvider(BaseLLMProvider):
         # TODO: implement using anthropic Python SDK, model claude-3-5-haiku-20241022
         raise NotImplementedError("Claude provider not yet implemented")
 
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        raise NotImplementedError("Claude provider not yet implemented")
+
     def embed(self, text: str) -> list[float]:
         # TODO: implement using anthropic Python SDK, model claude-3-5-haiku-20241022
         raise NotImplementedError("Claude provider not yet implemented")

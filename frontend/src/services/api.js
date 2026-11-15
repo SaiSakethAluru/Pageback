@@ -161,3 +161,19 @@ export async function getRecapLevels() {
     credentials: "include",
   });
 }
+
+export async function lookupContextual(bookId, term, positionChar = 0, positionCfi = null) {
+  return request("/api/v1/recap/contextual-lookup", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      book_id: bookId,
+      term,
+      position_char: positionChar,
+      position_cfi: positionCfi,
+    }),
+  });
+}

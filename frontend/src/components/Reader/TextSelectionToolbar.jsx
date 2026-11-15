@@ -124,6 +124,7 @@ const toolbarStyle = {
   height: "40px",
   width: "auto",
   minWidth: "150px",
+  maxWidth: "calc(100vw - 24px)",
   background: "#1c1712",
   color: "#f6f1e8",
   borderRadius: "12px",

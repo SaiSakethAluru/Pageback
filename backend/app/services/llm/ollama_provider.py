@@ -55,6 +55,23 @@ class OllamaProvider(BaseLLMProvider):
         content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
         return content
 
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        response = self._post(
+            "/api/chat",
+            {
+                "model": self.recap_model,
+                "stream": False,
+                "messages": messages,
+            },
+        )
+        content = str((response.json() or {}).get("message", {}).get("content") or "").strip()
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+        return content
+
     def embed(self, text: str) -> list[float]:
         return self.embed_batch([text])[0]
 

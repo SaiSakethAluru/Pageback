@@ -45,3 +45,38 @@ def generate_recap():
 @recap_bp.get("/levels")
 def get_levels():
     return jsonify(serialize_recap_levels())
+
+
+@recap_bp.post("/contextual-lookup")
+@require_auth
+def contextual_lookup():
+    user_id = current_user_id()
+    payload = request.get_json(silent=True) or {}
+    book_id = str(payload.get("book_id") or "").strip()
+    term = str(payload.get("term") or "").strip()
+    try:
+        position_char = int(payload.get("position_char") or 0)
+    except (ValueError, TypeError):
+        position_char = 0
+    position_cfi = payload.get("position_cfi")
+
+    if not book_id:
+        return jsonify({"error": "book_id is required"}), 400
+    if not term:
+        return jsonify({"error": "term is required"}), 400
+
+    try:
+        result = get_container().contextual_lookup_service.lookup(
+            user_id=user_id,
+            book_id=book_id,
+            term=term,
+            position_char=position_char,
+            position_cfi=position_cfi,
+        )
+    except ApplicationError:
+        raise
+    except Exception as exc:
+        logger.exception("Contextual lookup failed user_id=%s book_id=%s term=%s", user_id, book_id, term)
+        raise InfrastructureError("Contextual lookup failed.") from exc
+
+    return jsonify(asdict(result))

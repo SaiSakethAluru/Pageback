@@ -15,6 +15,10 @@ class BaseLLMProvider(LLMGateway):
         raise NotImplementedError
 
     @abstractmethod
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
     def embed(self, text: str) -> list[float]:
         raise NotImplementedError
 
