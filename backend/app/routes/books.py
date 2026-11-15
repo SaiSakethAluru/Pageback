@@ -140,6 +140,50 @@ def list_books():
     return jsonify(books)
 
 
+@books_bp.get("/<book_id>")
+@require_auth
+def get_book(book_id: str):
+    user_id = current_user_id()
+    book_service = get_container().book_service
+    book = book_service.get_book(book_id, user_id)
+    if not book:
+        return error_response(NotFoundError("Book not found"))
+    return jsonify(
+        asdict(
+            book_service.to_book_dto(
+                book,
+                cover_url=book_service.create_signed_cover_url(book.cover_path),
+            )
+        )
+    )
+
+
+@books_bp.get("/<book_id>/series")
+@require_auth
+def get_book_series(book_id: str):
+    user_id = current_user_id()
+    book_service = get_container().book_service
+    book = book_service.get_book(book_id, user_id)
+    if not book:
+        return error_response(NotFoundError("Book not found"))
+    previous_books = book_service.get_previous_books_in_series(book_id, user_id)
+    return jsonify(
+        {
+            "series_name": book.series_name,
+            "series_order": book.series_order,
+            "previous_books": [
+                {
+                    "id": b.id,
+                    "title": b.metadata.title,
+                    "author": b.metadata.author,
+                    "series_order": b.metadata.series_order,
+                }
+                for b in previous_books
+            ],
+        }
+    )
+
+
 @books_bp.patch("/<book_id>/metadata")
 @require_auth
 def update_book_metadata(book_id: str):
@@ -151,6 +195,8 @@ def update_book_metadata(book_id: str):
         user_id,
         metadata_request.title,
         metadata_request.author,
+        metadata_request.series_name,
+        metadata_request.series_order,
     )
     if not updated:
         return error_response(NotFoundError("Book not found"))
@@ -160,6 +206,8 @@ def update_book_metadata(book_id: str):
             "book_id": book_id,
             "title": updated.title,
             "author": updated.author,
+            "series_name": updated.series_name,
+            "series_order": updated.series_order,
         }
     )
 

@@ -19,6 +19,8 @@ class UploadBookRequest:
 class UpdateBookMetadataRequest:
     title: str | None
     author: str | None
+    series_name: str | None = None
+    series_order: float | None = None
 
 
 def parse_upload_request(file) -> UploadBookRequest:
@@ -44,9 +46,19 @@ def parse_upload_request(file) -> UploadBookRequest:
 
 
 def parse_book_metadata_update(payload: dict) -> UpdateBookMetadataRequest:
+    series_order_raw = payload.get("series_order")
+    series_order = None
+    if series_order_raw is not None and str(series_order_raw).strip() != "":
+        try:
+            series_order = float(series_order_raw)
+        except (ValueError, TypeError):
+            series_order = None
+
     return UpdateBookMetadataRequest(
         title=_normalize_metadata_text(payload.get("title")),
         author=_normalize_metadata_text(payload.get("author")),
+        series_name=_normalize_metadata_text(payload.get("series_name")),
+        series_order=series_order,
     )
 
 

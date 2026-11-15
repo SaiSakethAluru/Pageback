@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.application.books.series_context import SeriesContextService
 from app.application.chat.dto import ChatMessageDTO, ChatResponseDTO
 from app.application.recap.service import WindowResolverService
 from app.domain.books.models import BookChunk
@@ -33,12 +34,14 @@ class BookChatService:
         window_resolver: WindowResolverService,
         usage_logs: UsageLogRepository,
         positions: ReadingPositionRepository | None = None,
+        series_context: SeriesContextService | None = None,
     ) -> None:
         self._chunks = chunks
         self._llm = llm
         self._window_resolver = window_resolver
         self._usage_logs = usage_logs
         self._positions = positions
+        self._series_context = series_context
 
     def chat(
         self,
@@ -102,7 +105,15 @@ class BookChatService:
                 selected.append(c)
 
         selected.sort(key=lambda c: (c.chapter_index, c.chunk_index, c.start_char))
-        context_text = "\n\n".join(c.text for c in selected) if selected else "No read text available."
+
+        series_context_text = ""
+        if self._series_context:
+            try:
+                series_context_text = self._series_context.resolve_context_for_chat(
+                    user_id, book_id, latest_user_msg
+                )
+            except Exception as e:
+                logger.warning("Failed resolving series context for chat: %s", e)
 
         # Format conversation history
         history_lines = []
@@ -112,13 +123,24 @@ class BookChatService:
 
         conversation_str = "\n".join(history_lines)
 
+        prompt_sections: list[str] = []
+        if series_context_text:
+            prompt_sections.append(series_context_text)
+
+        if selected:
+            context_text = "\n\n".join(c.text for c in selected)
+            prompt_sections.append(
+                f"--- CURRENT BOOK EXCERPTS (READ UP TO CURRENT POSITION) ---\n"
+                f"{context_text}\n"
+                f"--- END OF CURRENT BOOK EXCERPTS ---"
+            )
+        elif not series_context_text:
+            prompt_sections.append("No read text available.")
+
         prompt = (
-            f"--- STORY EXCERPTS (READ UP TO CURRENT POSITION) ---\n"
-            f"{context_text}\n"
-            f"--- END OF EXCERPTS ---\n\n"
-            f"Conversation History:\n"
-            f"{conversation_str}\n\n"
-            f"Respond as the reading assistant (grounded strictly in the excerpts):"
+            "\n\n".join(prompt_sections)
+            + f"\n\nConversation History:\n{conversation_str}\n\n"
+            + "Respond as the reading assistant (grounded strictly in the excerpts):"
         )
 
         reply = self._llm.generate(prompt, system_prompt=CHAT_SYSTEM_PROMPT)
@@ -134,4 +156,4 @@ class BookChatService:
             cost_usd=0.0,
         )
 
-        return ChatResponseDTO(reply=reply, grounded=bool(selected))
+        return ChatResponseDTO(reply=reply, grounded=bool(selected or series_context_text))

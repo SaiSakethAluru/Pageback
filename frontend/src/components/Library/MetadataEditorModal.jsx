@@ -4,6 +4,8 @@ import * as api from "../../services/api";
 export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
+  const [seriesName, setSeriesName] = useState("");
+  const [seriesOrder, setSeriesOrder] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [newCoverFile, setNewCoverFile] = useState(null);
   const [pendingOnlineCoverUrl, setPendingOnlineCoverUrl] = useState(null);
@@ -48,6 +50,8 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
     }
     setTitle(book.title || "");
     setAuthor(book.author || "");
+    setSeriesName(book.series_name || "");
+    setSeriesOrder(book.series_order != null ? String(book.series_order) : "");
     setCoverUrl(book.cover_url || "");
     setNewCoverFile(null);
     setPendingOnlineCoverUrl(null);
@@ -107,6 +111,8 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
   function handleApplyMatch(match) {
     if (match.title) setTitle(match.title);
     if (match.author) setAuthor(match.author);
+    if (match.seriesName) setSeriesName(match.seriesName);
+    if (match.seriesOrder != null) setSeriesOrder(String(match.seriesOrder));
     if (match.coverUrl) {
       setCoverUrl(match.coverUrl);
       setPendingOnlineCoverUrl(match.coverUrl);
@@ -121,7 +127,13 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
     setError("");
 
     try {
-      const updatedMeta = await api.updateBookMetadata(book.id, { title, author });
+      const orderParsed = seriesOrder.trim() ? parseFloat(seriesOrder) : null;
+      const updatedMeta = await api.updateBookMetadata(book.id, {
+        title,
+        author,
+        series_name: seriesName.trim() || null,
+        series_order: isNaN(orderParsed) ? null : orderParsed,
+      });
       let finalCoverUrl = book.cover_url;
 
       if (newCoverFile) {
@@ -218,6 +230,29 @@ export default function MetadataEditorModal({ book, isOpen, onClose, onSaved }) 
                 style={inputStyle}
               />
             </label>
+
+            <div style={seriesRowStyle}>
+              <label style={{ ...fieldStyle, flex: 2, minWidth: "160px" }}>
+                <span style={labelStyle}>Series Name</span>
+                <input
+                  value={seriesName}
+                  onChange={(event) => setSeriesName(event.target.value)}
+                  placeholder="e.g. The Lord of the Rings, Mistborn"
+                  style={inputStyle}
+                />
+              </label>
+              <label style={{ ...fieldStyle, flex: 1, minWidth: "90px" }}>
+                <span style={labelStyle}>Volume / Book #</span>
+                <input
+                  type="number"
+                  step="any"
+                  value={seriesOrder}
+                  onChange={(event) => setSeriesOrder(event.target.value)}
+                  placeholder="e.g. 1, 2"
+                  style={inputStyle}
+                />
+              </label>
+            </div>
 
             {onlineSearchOpen ? (
               <div style={onlineResultsBoxStyle}>
@@ -431,6 +466,12 @@ const fieldStyle = {
   display: "flex",
   flexDirection: "column",
   gap: "0.45rem",
+};
+
+const seriesRowStyle = {
+  display: "flex",
+  gap: "0.75rem",
+  flexWrap: "wrap",
 };
 
 const labelStyle = {

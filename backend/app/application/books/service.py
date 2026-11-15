@@ -14,7 +14,7 @@ class BookService:
         books: BookRepository,
         storage: BookStorage,
         chunks: ChunkRepository,
-        positions: ReadingPositionRepository,
+        positions: ReadingPositionRepository | None = None,
     ) -> None:
         self._books = books
         self._storage = storage
@@ -51,11 +51,44 @@ class BookService:
     def list_books(self, user_id: str) -> list[BookFileDTO]:
         return [self._to_file_dto(book) for book in self._books.list_by_user(user_id)]
 
-    def update_metadata(self, book_id: str, user_id: str, title: str | None, author: str | None) -> BookFileDTO | None:
-        book = self._books.update_metadata(book_id, user_id, BookMetadata(title=title, author=author))
+    def update_metadata(
+        self,
+        book_id: str,
+        user_id: str,
+        title: str | None,
+        author: str | None,
+        series_name: str | None = None,
+        series_order: float | None = None,
+    ) -> BookFileDTO | None:
+        book = self._books.update_metadata(
+            book_id,
+            user_id,
+            BookMetadata(
+                title=title,
+                author=author,
+                series_name=series_name,
+                series_order=series_order,
+            ),
+        )
         if not book:
             return None
         return self._to_file_dto(book)
+
+    def get_previous_books_in_series(self, book_id: str, user_id: str) -> list[Book]:
+        current_book = self._books.get_by_id(book_id, user_id)
+        if not current_book or not current_book.metadata.series_name:
+            return []
+        current_order = current_book.metadata.series_order
+        if current_order is None:
+            return []
+        books_in_series = self._books.list_books_in_series(user_id, current_book.metadata.series_name)
+        return [
+            b
+            for b in books_in_series
+            if b.id != book_id
+            and b.metadata.series_order is not None
+            and b.metadata.series_order < current_order
+        ]
 
     def update_cover_path(self, book_id: str, cover_path: str) -> None:
         self._books.update_cover_path(book_id, cover_path)
@@ -223,6 +256,8 @@ class BookService:
             ingestion_step=book.ingestion_step,
             ingestion_error=book.ingestion_error,
             created_at=book.created_at,
+            series_name=book.series_name,
+            series_order=book.series_order,
         )
 
     @staticmethod
@@ -239,6 +274,8 @@ class BookService:
             ingestion_step=book.ingestion.step,
             ingestion_error=book.ingestion.error,
             created_at=book.created_at,
+            series_name=book.metadata.series_name,
+            series_order=book.metadata.series_order,
         )
 
     @staticmethod

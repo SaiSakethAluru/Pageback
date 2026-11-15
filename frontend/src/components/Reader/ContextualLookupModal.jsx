@@ -13,6 +13,22 @@ export default function ContextualLookupModal({
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [seriesInfo, setSeriesInfo] = useState(null);
+
+  useEffect(() => {
+    if (!bookId) return;
+    let active = true;
+    api.getBookSeries(bookId)
+      .then((data) => {
+        if (active && data?.series_name && data?.previous_books?.length > 0) {
+          setSeriesInfo(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [bookId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -101,6 +117,14 @@ export default function ContextualLookupModal({
             <div style={badgeRowStyle}>
               <span style={badgeStyle}>Book Lore & Character</span>
               <span style={spoilerBadgeStyle}>🛡️ Spoiler-safe</span>
+              {seriesInfo ? (
+                <span
+                  style={seriesBadgeStyle}
+                  title={`Includes lore from ${seriesInfo.previous_books.length} earlier book(s) in ${seriesInfo.series_name}`}
+                >
+                  📚 Series: {seriesInfo.series_name}
+                </span>
+              ) : null}
             </div>
             <h3 style={termTitleStyle}>{term}</h3>
           </div>
@@ -247,6 +271,20 @@ const spoilerBadgeStyle = {
   background: "#e4efe7",
   padding: "0.15rem 0.5rem",
   borderRadius: "6px",
+};
+
+const seriesBadgeStyle = {
+  fontSize: "0.72rem",
+  fontWeight: 600,
+  color: "#7e5229",
+  background: "#f4ebd9",
+  border: "1px solid rgba(126, 82, 41, 0.2)",
+  padding: "0.15rem 0.5rem",
+  borderRadius: "6px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  maxWidth: "200px",
 };
 
 const termTitleStyle = {

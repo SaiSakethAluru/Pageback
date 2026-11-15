@@ -6,6 +6,7 @@ from functools import lru_cache
 from app.application.books.ingestion_service import BookIngestionService
 from app.application.books.ingestion_workflow import BookIngestionWorkflow
 from app.application.books.lifecycle_workflow import BookLifecycleWorkflow
+from app.application.books.series_context import SeriesContextService
 from app.application.chat.service import BookChatService
 from app.application.contextual_lookup.service import ContextualLookupService
 from app.application.auth.service import AuthApplicationService
@@ -41,6 +42,7 @@ class ApplicationContainer:
     recap_service: RecapService
     system_service: SystemInfoService
     window_resolver: WindowResolverService
+    series_context_service: SeriesContextService | None = None
 
 
 @lru_cache(maxsize=1)
@@ -63,6 +65,7 @@ def get_container() -> ApplicationContainer:
         parser_factory,
     )
     window_resolver = WindowResolverService(chunk_repository, llm_gateway)
+    series_context = SeriesContextService(book_repository, chunk_repository, llm_gateway)
     recap_cache = get_recap_cache()
     return ApplicationContainer(
         auth_service=AuthApplicationService(user_repository),
@@ -78,6 +81,7 @@ def get_container() -> ApplicationContainer:
             window_resolver,
             usage_log_repository,
             positions=position_repository,
+            series_context=series_context,
         ),
         contextual_lookup_service=ContextualLookupService(
             chunk_repository,
@@ -85,6 +89,7 @@ def get_container() -> ApplicationContainer:
             window_resolver,
             usage_log_repository,
             positions=position_repository,
+            series_context=series_context,
         ),
         ingestion_service=ingestion_service,
         ingestion_workflow=BookIngestionWorkflow(
@@ -99,7 +104,9 @@ def get_container() -> ApplicationContainer:
             llm_gateway,
             usage_log_repository,
             positions=position_repository,
+            series_context=series_context,
         ),
         system_service=SystemInfoService(llm_gateway),
         window_resolver=window_resolver,
+        series_context_service=series_context,
     )

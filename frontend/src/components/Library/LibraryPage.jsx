@@ -79,6 +79,8 @@ export default function LibraryPage() {
               ...book,
               title: updatedMetadata.title ?? null,
               author: updatedMetadata.author ?? null,
+              series_name: updatedMetadata.series_name ?? book.series_name,
+              series_order: updatedMetadata.series_order ?? book.series_order,
               cover_url: updatedMetadata.cover_url ?? book.cover_url,
             }
           : book
@@ -204,6 +206,7 @@ export default function LibraryPage() {
                 <tr style={tableHeadRowStyle}>
                   <th style={thStyle}>Cover</th>
                   <th style={{ ...thStyle, textAlign: "left" }}>Title & Author</th>
+                  <th style={thStyle}>Series</th>
                   <th style={thStyle}>Format</th>
                   <th style={thStyle}>AI Status</th>
                   <th style={thStyle}>Added</th>
@@ -231,6 +234,15 @@ export default function LibraryPage() {
                       <span style={bookAuthorSpanStyle}>
                         {book.author || "Unknown author"}
                       </span>
+                    </td>
+                    <td style={tdCenterStyle}>
+                      {book.series_name ? (
+                        <span style={seriesTableBadgeStyle} title={`Series: ${book.series_name}`}>
+                          {book.series_name} {book.series_order != null ? `#${book.series_order}` : ""}
+                        </span>
+                      ) : (
+                        <span style={emptySeriesSpanStyle}>—</span>
+                      )}
                     </td>
                     <td style={tdCenterStyle}>
                       <span style={formatBadgeStyle}>EPUB</span>
@@ -685,6 +697,26 @@ const formatBadgeStyle = {
   background: "#ece5d8",
   padding: "0.2rem 0.5rem",
   borderRadius: "6px",
+};
+
+const seriesTableBadgeStyle = {
+  fontSize: "0.78rem",
+  fontWeight: 600,
+  color: "#7e5229",
+  background: "#f4ebd9",
+  border: "1px solid rgba(126, 82, 41, 0.2)",
+  padding: "0.2rem 0.6rem",
+  borderRadius: "8px",
+  whiteSpace: "nowrap",
+  display: "inline-block",
+  maxWidth: "180px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const emptySeriesSpanStyle = {
+  color: "#a59c90",
+  fontSize: "0.85rem",
 };
 
 const statusBadgeStyle = {

@@ -1,6 +1,7 @@
 import logging
 import re
 
+from app.application.books.series_context import SeriesContextService
 from app.application.errors import RecapUnavailableError
 from app.application.recap.dto import RecapResultDTO
 from app.domain.books.models import BookChunk
@@ -103,12 +104,14 @@ class RecapService:
         llm: LLMGateway,
         usage_logs: UsageLogRepository,
         positions: ReadingPositionRepository | None = None,
+        series_context: SeriesContextService | None = None,
     ) -> None:
         self._window_resolver = window_resolver
         self._cache = cache
         self._llm = llm
         self._usage_logs = usage_logs
         self._positions = positions
+        self._series_context = series_context
 
     def generate(
         self,
@@ -150,6 +153,19 @@ class RecapService:
             return RecapResultDTO(summary=cached, level=level, cached=True)
 
         text_window = self._window_resolver.resolve(book_id, position_char, level, position_cfi=position_cfi)
+
+        series_window = ""
+        if self._series_context and level >= 2:
+            try:
+                series_window = self._series_context.resolve_context_for_recap(user_id, book_id)
+            except Exception as e:
+                logger.warning("Failed resolving series context for recap: %s", e)
+
+        if series_window and text_window.strip():
+            text_window = f"{series_window}\n\n--- CURRENT BOOK EXCERPTS ---\n{text_window}"
+        elif series_window and not text_window.strip():
+            text_window = series_window
+
         if not text_window.strip():
             logger.info(
                 "Recap unavailable because no spoiler-safe context was found for book_id=%s position_char=%s level=%s position_cfi=%s",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.application.books.series_context import SeriesContextService
 from app.application.contextual_lookup.dto import ContextualLookupResultDTO
 from app.application.recap.service import WindowResolverService
 from app.domain.books.models import BookChunk
@@ -32,12 +33,14 @@ class ContextualLookupService:
         window_resolver: WindowResolverService,
         usage_logs: UsageLogRepository,
         positions: ReadingPositionRepository | None = None,
+        series_context: SeriesContextService | None = None,
     ) -> None:
         self._chunks = chunks
         self._llm = llm
         self._window_resolver = window_resolver
         self._usage_logs = usage_logs
         self._positions = positions
+        self._series_context = series_context
 
     def lookup(
         self,
@@ -104,21 +107,38 @@ class ContextualLookupService:
 
         selected.sort(key=lambda c: (c.chapter_index, c.chunk_index, c.start_char))
 
-        # Check if we have any relevant chunks
-        if not selected:
+        series_context_text = ""
+        if self._series_context:
+            try:
+                series_context_text = self._series_context.resolve_context_for_term(
+                    user_id, book_id, clean_term
+                )
+            except Exception as e:
+                logger.warning("Failed resolving series context for term '%s': %s", clean_term, e)
+
+        # Check if we have any relevant chunks from this book or earlier books in the series
+        if not selected and not series_context_text:
             return ContextualLookupResultDTO(
                 term=clean_term,
                 explanation=f"No mentions of '{clean_term}' were found in the book prior to your current reading position. It may not have been introduced yet.",
                 grounded=False,
             )
 
-        context_text = "\n\n".join(chunk.text for chunk in selected)
+        prompt_sections: list[str] = []
+        if series_context_text:
+            prompt_sections.append(series_context_text)
+
+        if selected:
+            context_text = "\n\n".join(chunk.text for chunk in selected)
+            prompt_sections.append(
+                f"--- CURRENT BOOK EXCERPTS (READ SO FAR) ---\n"
+                f"{context_text}\n"
+                f"--- END OF CURRENT BOOK EXCERPTS ---"
+            )
 
         prompt = (
-            f"Explain who or what '{clean_term}' is in the story, based solely on what the reader has encountered so far:\n\n"
-            f"--- STORY EXCERPTS (READ SO FAR) ---\n"
-            f"{context_text}\n"
-            f"--- END OF EXCERPTS ---"
+            f"Explain who or what '{clean_term}' is in the story, based solely on what the reader has encountered so far in this book and earlier books in the series:\n\n"
+            + "\n\n".join(prompt_sections)
         )
 
         explanation = self._llm.generate(prompt, system_prompt=SYSTEM_PROMPT)
