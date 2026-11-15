@@ -12,6 +12,8 @@ const EpubReader = forwardRef(function EpubReader(
     onReaderStateChange,
     onLoadingChange,
     onReadyChange,
+    onTextSelected,
+    onClearSelection,
   },
   ref,
 ) {
@@ -23,6 +25,9 @@ const EpubReader = forwardRef(function EpubReader(
   const onReaderStateChangeRef = useRef(onReaderStateChange);
   const onLoadingChangeRef = useRef(onLoadingChange);
   const onReadyChangeRef = useRef(onReadyChange);
+  const onTextSelectedRef = useRef(onTextSelected);
+  const onClearSelectionRef = useRef(onClearSelection);
+  const lastLongPressTimeRef = useRef(0);
   const locationsReadyRef = useRef(false);
   const calculatePositionInfoRef = useRef(null);
   const [error, setError] = useState("");
@@ -42,6 +47,14 @@ const EpubReader = forwardRef(function EpubReader(
   useEffect(() => {
     onReadyChangeRef.current = onReadyChange;
   }, [onReadyChange]);
+
+  useEffect(() => {
+    onTextSelectedRef.current = onTextSelected;
+  }, [onTextSelected]);
+
+  useEffect(() => {
+    onClearSelectionRef.current = onClearSelection;
+  }, [onClearSelection]);
 
   useEffect(() => {
     if (initialCfi) {
@@ -205,6 +218,9 @@ const EpubReader = forwardRef(function EpubReader(
             background: "transparent",
             "caret-color": "transparent",
             outline: "none",
+            "-webkit-touch-callout": "none",
+            "-webkit-user-select": "text",
+            "user-select": "text",
           },
         });
         rendition.themes.fontSize(`${fontScale}%`);
@@ -244,7 +260,156 @@ const EpubReader = forwardRef(function EpubReader(
         };
 
         rendition.hooks.content.register((contents) => {
-          contents.document?.addEventListener("keydown", handleContentKeyDown, true);
+          const doc = contents.document;
+          if (!doc) return;
+
+          doc.addEventListener("keydown", handleContentKeyDown, true);
+
+          // Clear selection when clicked without active selection
+          doc.addEventListener("click", () => {
+            const sel = contents.window?.getSelection();
+            if (!sel || sel.isCollapsed) {
+              onClearSelectionRef.current?.();
+            }
+          });
+
+          // Long press detection for mobile/touch
+          let activeTouchTimer = null;
+          let touchStartPos = null;
+
+          doc.addEventListener(
+            "touchstart",
+            (event) => {
+              if (event.touches.length !== 1) return;
+              const touch = event.touches[0];
+              touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+              if (activeTouchTimer) {
+                clearTimeout(activeTouchTimer);
+              }
+
+              activeTouchTimer = setTimeout(() => {
+                activeTouchTimer = null;
+                try {
+                  let range = null;
+                  if (doc.caretRangeFromPoint) {
+                    range = doc.caretRangeFromPoint(touch.clientX, touch.clientY);
+                  } else if (doc.caretPositionFromPoint) {
+                    const pos = doc.caretPositionFromPoint(touch.clientX, touch.clientY);
+                    if (pos) {
+                      range = doc.createRange();
+                      range.setStart(pos.offsetNode, pos.offset);
+                      range.collapse(true);
+                    }
+                  }
+
+                  if (range && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+                    const textNode = range.startContainer;
+                    const fullText = textNode.nodeValue || "";
+                    const offset = range.startOffset;
+
+                    let start = offset;
+                    while (start > 0 && /[\p{L}\p{N}\u2018\u2019'-]/u.test(fullText[start - 1])) {
+                      start--;
+                    }
+                    let end = offset;
+                    while (end < fullText.length && /[\p{L}\p{N}\u2018\u2019'-]/u.test(fullText[end])) {
+                      end++;
+                    }
+
+                    if (end > start) {
+                      const word = fullText.slice(start, end).trim();
+                      if (word) {
+                        const wordRange = doc.createRange();
+                        wordRange.setStart(textNode, start);
+                        wordRange.setEnd(textNode, end);
+                        const wordRect = wordRange.getBoundingClientRect();
+                        const iframeEl = doc.defaultView?.frameElement;
+                        const iframeRect = iframeEl?.getBoundingClientRect() || { left: 0, top: 0 };
+
+                        const sel = contents.window?.getSelection();
+                        if (sel) {
+                          sel.removeAllRanges();
+                          sel.addRange(wordRange);
+                        }
+
+                        lastLongPressTimeRef.current = Date.now();
+                        onTextSelectedRef.current?.({
+                          text: word,
+                          isLongPress: true,
+                          rect: {
+                            top: wordRect.top + iframeRect.top,
+                            bottom: wordRect.bottom + iframeRect.top,
+                            left: wordRect.left + iframeRect.left,
+                            right: wordRect.right + iframeRect.left,
+                            width: wordRect.width,
+                            height: wordRect.height,
+                          },
+                        });
+                      }
+                    }
+                  }
+                } catch {
+                  // Ignore touch lookup errors
+                }
+              }, 450);
+            },
+            { passive: true }
+          );
+
+          doc.addEventListener(
+            "touchmove",
+            (event) => {
+              if (activeTouchTimer && touchStartPos && event.touches[0]) {
+                const dx = event.touches[0].clientX - touchStartPos.x;
+                const dy = event.touches[0].clientY - touchStartPos.y;
+                if (Math.hypot(dx, dy) > 10) {
+                  clearTimeout(activeTouchTimer);
+                  activeTouchTimer = null;
+                }
+              }
+            },
+            { passive: true }
+          );
+
+          doc.addEventListener("touchend", () => {
+            if (activeTouchTimer) {
+              clearTimeout(activeTouchTimer);
+              activeTouchTimer = null;
+            }
+          });
+        });
+
+        rendition.on("selected", (cfiRange, contents) => {
+          // If this selection event was caused by programmatic selection during a long-press, skip it
+          if (Date.now() - lastLongPressTimeRef.current < 1000) {
+            return;
+          }
+
+          try {
+            const range = rendition.getRange(cfiRange);
+            if (!range) return;
+            const text = range.toString().trim();
+            if (!text) return;
+            const rect = range.getBoundingClientRect();
+            const iframeEl = contents?.document?.defaultView?.frameElement;
+            const iframeRect = iframeEl?.getBoundingClientRect() || { left: 0, top: 0 };
+            onTextSelectedRef.current?.({
+              text,
+              cfiRange,
+              isLongPress: false,
+              rect: {
+                top: rect.top + iframeRect.top,
+                bottom: rect.bottom + iframeRect.top,
+                left: rect.left + iframeRect.left,
+                right: rect.right + iframeRect.left,
+                width: rect.width,
+                height: rect.height,
+              },
+            });
+          } catch {
+            // ignore
+          }
         });
 
         handleRelocated = (location) => {

@@ -7,6 +7,8 @@ import PdfReader from "../../readers/PdfReader";
 import * as api from "../../services/api";
 import RecapLevelIndicator from "./RecapLevelIndicator";
 import RecapPanel from "./RecapPanel";
+import TextSelectionToolbar from "./TextSelectionToolbar";
+import WordLookupModal from "./WordLookupModal";
 
 const ORIENTATION_OPTIONS = [
   { value: "horizontal-spread", label: "Horizontal 2-page" },
@@ -60,6 +62,9 @@ export default function ReaderPage() {
   const [recapError, setRecapError] = useState("");
   const [isRecapLoading, setIsRecapLoading] = useState(false);
   const [isRecapPanelOpen, setIsRecapPanelOpen] = useState(false);
+  const [selectedTextInfo, setSelectedTextInfo] = useState(null);
+  const [lookupWord, setLookupWord] = useState(null);
+  const [lookupPosition, setLookupPosition] = useState(null);
   const [ingestion, setIngestion] = useState({
     status: "ready",
     progress: null,
@@ -243,6 +248,35 @@ export default function ReaderPage() {
     }, 2000);
   }
 
+  function handleTextSelected({ text, rect, isLongPress }) {
+    if (!text || !text.trim()) {
+      return;
+    }
+    const trimmed = text.trim();
+    const wordCount = trimmed.split(/\s+/).length;
+    if (isLongPress && wordCount === 1) {
+      setSelectedTextInfo(null);
+      setLookupWord(trimmed);
+      setLookupPosition(rect);
+    } else if (!lookupWord) {
+      setSelectedTextInfo({ text: trimmed, rect });
+    }
+  }
+
+  function handleClearSelection() {
+    setSelectedTextInfo(null);
+  }
+
+  function handleDefine(text) {
+    const word = text || selectedTextInfo?.text;
+    const pos = selectedTextInfo?.rect || null;
+    setSelectedTextInfo(null);
+    if (word) {
+      setLookupWord(word);
+      setLookupPosition(pos);
+    }
+  }
+
   const readerType = getReaderType("original.epub");
   const ReaderComponent = readerType === "pdf" ? PdfReader : EpubReader;
   const aiStatus = normalizeAIStatus(ingestion.status);
@@ -395,6 +429,8 @@ export default function ReaderPage() {
           layoutMode={layoutMode}
           fontScale={fontScale}
           fontFamily={fontFamily}
+          onTextSelected={handleTextSelected}
+          onClearSelection={handleClearSelection}
         />
       </div>
 
@@ -743,6 +779,26 @@ export default function ReaderPage() {
           onDismiss={handleDismissRecap}
         />
       ) : null}
+
+      {!lookupWord && selectedTextInfo ? (
+        <TextSelectionToolbar
+          selectedText={selectedTextInfo.text}
+          rect={selectedTextInfo.rect}
+          onDefine={handleDefine}
+          onClear={handleClearSelection}
+        />
+      ) : null}
+
+      <WordLookupModal
+        word={lookupWord}
+        isOpen={Boolean(lookupWord)}
+        position={lookupPosition}
+        onClose={() => {
+          setLookupWord(null);
+          setLookupPosition(null);
+          setSelectedTextInfo(null);
+        }}
+      />
     </div>
   );
 }
